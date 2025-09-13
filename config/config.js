@@ -12,7 +12,8 @@ class ConfigLoader {
     const configFiles = [
       'channle_san_config.json',
       'bot_config.json',
-      'atuo_applyrole_config.json'
+      'atuo_applyrole_config.json',
+      'log_config.json'
     ];
 
     // 加载所有配置文件
