@@ -89,28 +89,50 @@ client.once('ready', async () => {
     await scannerManager.startAllScans();
 });
 
-// 处理斜杠命令交互
+// 处理交互
 client.on('interactionCreate', async (interaction) => {
-    if (!interaction.isChatInputCommand()) return;
+    if (interaction.isChatInputCommand()) {
+        // 处理斜杠命令
+        const handlers = await loadHandlers();
+        const handlerName = interaction.commandName.replace(/[^a-zA-Z0-9_]/g, '_') + '_handler';
+        const handler = handlers.get(handlerName);
 
-    const handlers = await loadHandlers();
-    const handlerName = interaction.commandName.replace(/[^a-zA-Z0-9_]/g, '_') + '_handler';
-    const handler = handlers.get(handlerName);
-
-    if (handler) {
+        if (handler) {
+            try {
+                await handler.execute(interaction);
+            } catch (error) {
+                console.error(`执行命令 ${interaction.commandName} 时出错:`, error);
+                const reply = { content: '执行命令时发生错误，请稍后重试。', ephemeral: true };
+                if (interaction.replied || interaction.deferred) {
+                    await interaction.followUp(reply);
+                } else {
+                    await interaction.reply(reply);
+                }
+            }
+        } else {
+            await interaction.reply({ content: '未找到对应的命令处理器。', ephemeral: true });
+        }
+    } else if (interaction.isButton()) {
+        // 处理按钮交互
         try {
-            await handler.execute(interaction);
+            const CacheMatch = require('./utils/cache_match');
+            const cacheId = CacheMatch.matchPrefix(interaction.customId, 'role_leave');
+
+            if (cacheId) {
+                const roleLeaveButtonHandler = require('./handler/role_leave_button_handler');
+                await roleLeaveButtonHandler.execute(interaction, cacheId);
+            } else {
+                await interaction.reply({ content: '未知的按钮操作。', ephemeral: true });
+            }
         } catch (error) {
-            console.error(`执行命令 ${interaction.commandName} 时出错:`, error);
-            const reply = { content: '执行命令时发生错误，请稍后重试。', ephemeral: true };
+            console.error('处理按钮交互时出错:', error);
+            const reply = { content: '处理按钮交互时发生错误，请稍后重试。', ephemeral: true };
             if (interaction.replied || interaction.deferred) {
                 await interaction.followUp(reply);
             } else {
                 await interaction.reply(reply);
             }
         }
-    } else {
-        await interaction.reply({ content: '未找到对应的命令处理器。', ephemeral: true });
     }
 });
 
