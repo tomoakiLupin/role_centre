@@ -3,6 +3,8 @@ const FileEditor = require('../utils/file_editor');
 const { initDatabase, updateUserStats } = require('../db/message_scanner_db');
 const { scanChannelMessages } = require('./message_scanner');
 
+const cron = require('node-cron');
+
 class ScannerManager {
   constructor(client) {
     this.client = client;
@@ -21,6 +23,17 @@ class ScannerManager {
       await this.runScan(channelConfig);
     }
   }
+
+ scheduleScans() {
+   // 每天凌晨4点执行
+   cron.schedule('0 4 * * *', () => {
+     console.log('开始执行每日消息扫描任务...');
+     this.startAllScans();
+   }, {
+     scheduled: true,
+     timezone: "Asia/Shanghai"
+   });
+ }
 
   async runScan(channelConfig) {
     const { guilds_id, channel_id, frist_message_id } = channelConfig;

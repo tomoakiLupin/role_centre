@@ -4,6 +4,8 @@ const { sendLog } = require('./utils/logger');
 const ScannerManager = require('./scanner/scanner_manager');
 const fs = require('fs');
 const path = require('path');
+const CommandRegistry = require('./utils/command_registry');
+const { getPermissionLevel, PERMISSION_LEVELS } = require('./utils/auth');
 
 const client = new Client({
     intents: [
@@ -13,40 +15,7 @@ const client = new Client({
     ]
 });
 
-// 加载命令
-async function loadCommands() {
-    const commands = [];
-    const commandsPath = path.join(__dirname, 'command');
-
-    if (fs.existsSync(commandsPath)) {
-        const commandFiles = fs.readdirSync(commandsPath).filter(file => file.endsWith('.js'));
-
-        for (const file of commandFiles) {
-            const command = require(path.join(commandsPath, file));
-            commands.push(command);
-        }
-    }
-
-    return commands;
-}
-
-// 加载处理器
-async function loadHandlers() {
-    const handlers = new Map();
-    const handlersPath = path.join(__dirname, 'handler');
-
-    if (fs.existsSync(handlersPath)) {
-        const handlerFiles = fs.readdirSync(handlersPath).filter(file => file.endsWith('.js'));
-
-        for (const file of handlerFiles) {
-            const handlerName = path.basename(file, '.js');
-            const handler = require(path.join(handlersPath, file));
-            handlers.set(handlerName, handler);
-        }
-    }
-
-    return handlers;
-}
+const commandRegistry = new CommandRegistry();
 
 client.once('ready', async () => {
     console.log(`Bot 已上线，登录为：${client.user.tag}`);
@@ -60,68 +29,76 @@ client.once('ready', async () => {
     const botConfig = require('./config/bot_config.json');
     const guildIds = botConfig.main_config.safety_setting.command_push_guildids;
 
-    // 注册斜杠命令
-    const commands = await loadCommands();
+    // 加载并注册命令
+    commandRegistry.loadCommands(path.join(__dirname, 'command'));
+    commandRegistry.loadHandlers(path.join(__dirname, 'handler'));
+
+    const commands = commandRegistry.getAllCommands();
     if (commands.length > 0) {
         const rest = new REST().setToken(process.env.DISCORD_TOKEN);
-
         try {
-            // 清除全局命令
-            console.log('正在清除全局斜杠命令...');
+            console.log('正在清除旧的全局斜杠命令...');
             await rest.put(Routes.applicationCommands(client.user.id), { body: [] });
-            console.log('已清除全局斜杠命令');
+            console.log('已清除全局斜杠命令。');
 
-            // 只在指定服务器注册命令
             for (const guildId of guildIds) {
                 try {
                     await rest.put(Routes.applicationGuildCommands(client.user.id, guildId), { body: commands });
-                    console.log(`在服务器 ${guildId} 成功注册 ${commands.length} 个斜杠命令`);
+                    console.log(`在服务器 ${guildId} 成功注册 ${commands.length} 个斜杠命令。`);
                 } catch (error) {
                     console.error(`在服务器 ${guildId} 注册斜杠命令失败:`, error);
                 }
             }
         } catch (error) {
-            console.error('斜杠命令操作失败:', error);
+            console.error('注册斜杠命令时出错:', error);
         }
     }
 
     const scannerManager = new ScannerManager(client);
-    await scannerManager.startAllScans();
+    scannerManager.scheduleScans();
 });
 
 // 处理交互
 client.on('interactionCreate', async (interaction) => {
     if (interaction.isChatInputCommand()) {
-        // 处理斜杠命令
-        const handlers = await loadHandlers();
-        const handlerName = interaction.commandName.replace(/[^a-zA-Z0-9_]/g, '_') + '_handler';
-        const handler = handlers.get(handlerName);
+        const handler = commandRegistry.getHandler(interaction.commandName);
 
-        if (handler) {
-            try {
-                await handler.execute(interaction);
-            } catch (error) {
-                console.error(`执行命令 ${interaction.commandName} 时出错:`, error);
-                const reply = { content: '执行命令时发生错误，请稍后重试。', ephemeral: true };
-                if (interaction.replied || interaction.deferred) {
-                    await interaction.followUp(reply);
-                } else {
-                    await interaction.reply(reply);
-                }
+        if (!handler) {
+            return interaction.reply({ content: '未知的命令。', ephemeral: true });
+        }
+
+        // 权限验证
+        const userRoles = interaction.member.roles.cache.map(role => role.id);
+        const userPermissionLevel = getPermissionLevel(interaction.user.id, userRoles);
+
+        if (userPermissionLevel < (handler.requiredPermission || PERMISSION_LEVELS.USER)) {
+            return interaction.reply({ content: '❌ 您没有足够的权限来执行此命令。', ephemeral: true });
+        }
+
+        try {
+            await handler.execute(interaction);
+        } catch (error) {
+            console.error(`执行命令 ${interaction.commandName} 时出错:`, error);
+            const reply = { content: '执行此命令时发生错误。', ephemeral: true };
+            if (interaction.replied || interaction.deferred) {
+                await interaction.followUp(reply);
+            } else {
+                await interaction.reply(reply);
             }
-        } else {
-            await interaction.reply({ content: '未找到对应的命令处理器。', ephemeral: true });
         }
     } else if (interaction.isButton()) {
         // 处理按钮交互
         try {
-            const CacheMatch = require('./utils/cache_match');
-            const cacheId = CacheMatch.matchPrefix(interaction.customId, 'role_leave');
+            const roleLeaveButtonHandler = require('./handler/button_handler/role_leave_button_handler');
+            const roleButtonHandler = require('./handler/button_handler/role_button_handler');
 
-            if (cacheId) {
-                const roleLeaveButtonHandler = require('./handler/role_leave_button_handler');
+            if (interaction.customId.startsWith('role_leave:')) {
+                const cacheId = interaction.customId.split(':')[1];
                 await roleLeaveButtonHandler.execute(interaction, cacheId);
-            } else {
+            } else if (interaction.customId.startsWith('role_join:') || interaction.customId.startsWith('role_leave:')) {
+                await roleButtonHandler.execute(interaction);
+            }
+            else {
                 await interaction.reply({ content: '未知的按钮操作。', ephemeral: true });
             }
         } catch (error) {

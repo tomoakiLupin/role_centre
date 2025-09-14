@@ -2,6 +2,7 @@ const FileEditor = require('../utils/file_editor');
 const { sendLog } = require('../utils/logger');
 const { EmbedBuilder, ButtonBuilder, ActionRowBuilder, ButtonStyle, ComponentType } = require('discord.js');
 const path = require('path');
+const { PERMISSION_LEVELS } = require('../utils/auth');
 
 class BatchRoleAssignHandler {
     constructor() {
@@ -333,4 +334,8 @@ class BatchRoleAssignHandler {
     }
 }
 
-module.exports = new BatchRoleAssignHandler();
+const handler = new BatchRoleAssignHandler();
+handler.commandName = '批量分发';
+handler.requiredPermission = PERMISSION_LEVELS.ADMIN;
+
+module.exports = handler;

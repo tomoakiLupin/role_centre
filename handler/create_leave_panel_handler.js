@@ -3,6 +3,7 @@ const CacheMatch = require('../utils/cache_match');
 const RoleLeavePanelUI = require('../ui/role_leave_panel');
 const { sendLog } = require('../utils/logger');
 const path = require('path');
+const { PERMISSION_LEVELS } = require('../utils/auth');
 
 class CreateLeavePanelHandler {
     constructor() {
@@ -174,4 +175,8 @@ class CreateLeavePanelHandler {
     }
 }
 
-module.exports = new CreateLeavePanelHandler();
+const handler = new CreateLeavePanelHandler();
+handler.commandName = 'create_leave_panel';
+handler.requiredPermission = PERMISSION_LEVELS.ADMIN;
+
+module.exports = handler;
