@@ -20,7 +20,8 @@ class ScannerManager {
 
     for (const key of channelKeys) {
       const channelConfig = scanConfigs[key].data;
-      await this.runScan(channelConfig);
+      const dbPath = scanConfigs[key].db_path;
+      await this.runScan(channelConfig, dbPath);
     }
   }
 
@@ -35,9 +36,8 @@ class ScannerManager {
    });
  }
 
-  async runScan(channelConfig) {
+  async runScan(channelConfig, dbPath) {
     const { guilds_id, channel_id, frist_message_id } = channelConfig;
-    const dbPath = this.config.channels_scan_config[channel_id].db_path;
 
     const cache = await this.cacheEditor.read() || {};
     const lastMessageId = cache[channel_id] || frist_message_id;

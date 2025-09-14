@@ -32,3 +32,4 @@ pnpm-debug.log*
 # Data and configuration files
 config/*.json
 data/
+outinput/

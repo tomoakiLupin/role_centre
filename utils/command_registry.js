@@ -35,11 +35,12 @@ class CommandRegistry {
         for (const file of commandFiles) {
             try {
                 const command = require(path.join(commandsPath, file));
-                if (command.name) {
-                    this.commands.set(command.name, command);
-                    console.log(`✓ 已加载命令: ${command.name}`);
+
+                if (command.data && command.data.name) {
+                    this.commands.set(command.data.name, command);
+                    console.log(`✓ 已加载命令: ${command.data.name}`);
                 } else {
-                    console.warn(`✗ 命令文件 ${file} 缺少 'name' 属性。`);
+                    console.warn(`✗ 命令文件 ${file} 必须导出包含 'data' 属性的对象。`);
                 }
             } catch (error) {
                 console.error(`✗ 从 ${file} 加载命令失败:`, error);
@@ -89,6 +90,15 @@ class CommandRegistry {
         return this.handlers.get(commandName);
     }
 
+    /**
+     * 检索与给定命令名称关联的命令定义。
+     * @param {string} commandName - 命令的名称。
+     * @returns {object|undefined} 命令定义对象，如果未找到则返回 undefined。
+     */
+    getCommand(commandName) {
+        return this.commands.get(commandName);
+    }
+
 
 
     /**
@@ -96,7 +106,7 @@ class CommandRegistry {
      * @returns {object[]} 命令数据对象的数组。
      */
     getAllCommands() {
-        return this.commands.map(cmd => cmd);
+        return Array.from(this.commands.values()).map(cmd => cmd.data);
     }
 }
 
