@@ -1,6 +1,7 @@
 const { SlashCommandBuilder, ChannelType } = require('discord.js');
 
-module.exports = new SlashCommandBuilder()
+module.exports = {
+    data: new SlashCommandBuilder()
     .setName('create_role_panel')
     .setDescription('Create a panel with buttons for users to get roles')
     .setNameLocalizations({
@@ -62,4 +63,8 @@ module.exports = new SlashCommandBuilder()
             .addChannelTypes(ChannelType.GuildText)
             .setRequired(false)
     )
-    .toJSON();
+    ,
+    async execute(interaction) {
+        // Command execution logic goes here
+    },
+};

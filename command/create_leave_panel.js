@@ -1,6 +1,7 @@
 const { SlashCommandBuilder } = require('discord.js');
 
-module.exports = new SlashCommandBuilder()
+module.exports = {
+    data: new SlashCommandBuilder()
     .setName('create_leave_panel')
     .setDescription('Create a panel with buttons for users to leave role groups')
     .setNameLocalizations({
@@ -42,4 +43,8 @@ module.exports = new SlashCommandBuilder()
             .setRequired(false)
             .setMinValue(0)
     )
-    .toJSON();
+    ,
+    async execute(interaction) {
+        // Command execution logic goes here
+    },
+};

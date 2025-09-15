@@ -1,6 +1,7 @@
 const { SlashCommandBuilder } = require('discord.js');
 
-module.exports = new SlashCommandBuilder()
+module.exports = {
+    data: new SlashCommandBuilder()
     .setName('批量分发')
     .setDescription('批量分发身份组给用户')
     .setNameLocalizations({
@@ -82,4 +83,8 @@ module.exports = new SlashCommandBuilder()
             })
             .setRequired(false)
     )
-    .toJSON();
+    ,
+    async execute(interaction) {
+        // Command execution logic goes here
+    },
+};

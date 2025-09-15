@@ -5,9 +5,9 @@ module.exports = {
     .setName('create_post_apply_panel')
     .setDescription('创建一个基于帖子反应的身份组申请面板')
     .setDefaultMemberPermissions(PermissionFlagsBits.Administrator)
-    .addRoleOption(option =>
-      option.setName('role')
-        .setDescription('需要申请的身份组')
+    .addStringOption(option =>
+      option.setName('role_id')
+        .setDescription('需要申请的身份组ID')
         .setRequired(true))
     .addIntegerOption(option =>
       option.setName('reactions')

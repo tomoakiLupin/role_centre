@@ -51,9 +51,24 @@ class FileEditor {
 
   async atomic_write(updateFn) {
     return this._addToQueue(async () => {
-      let data = await this.read();
-      const updatedData = await updateFn(data);
-      await this.write(updatedData);
+      let currentData = null;
+      try {
+        const rawData = await fs.readFile(this.filePath, 'utf8');
+        currentData = JSON.parse(rawData);
+      } catch (error) {
+        if (error.code !== 'ENOENT') {
+          throw error; // 文件读取失败，但不是“文件不存在”的错误，则向上抛出
+        }
+        // 文件不存在是正常情况，currentData 保持 null
+      }
+
+      const updatedData = await updateFn(currentData);
+
+      // 确保 updateFn 返回的不是 undefined，以防意外清空文件
+      if (typeof updatedData !== 'undefined') {
+        await this._ensureDirExists();
+        await fs.writeFile(this.filePath, JSON.stringify(updatedData, null, 2), 'utf8');
+      }
     });
   }
 }

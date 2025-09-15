@@ -1,7 +1,7 @@
-const CacheMatch = require('../utils/cache_match');
-const FileEditor = require('../utils/file_editor');
-const RoleLeavePanelUI = require('../ui/role_leave_panel');
-const { sendLog } = require('../utils/logger');
+const CacheMatch = require('../../utils/cache_match');
+const FileEditor = require('../../utils/file_editor');
+const RoleLeavePanelUI = require('../../ui/role_leave_panel');
+const { sendLog } = require('../../utils/logger');
 const path = require('path');
 
 class RoleLeaveButtonHandler {

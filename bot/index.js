@@ -6,6 +6,8 @@ const CommandHandler = require('./interactions/command_handler');
 const ButtonHandler = require('./interactions/button_handler');
 const ModalSubmitHandler = require('./interactions/modal_submit_handler');
 const ScannerManager = require('../scanner/scanner_manager');
+const { startScheduledTasks } = require('./services/scheduler_service');
+const MessageHandler = require('../handler/message_handler');
 
 class Bot {
     constructor() {
@@ -17,6 +19,7 @@ class Bot {
         this.buttonHandler = new ButtonHandler();
         this.modalSubmitHandler = new ModalSubmitHandler();
         this.scannerManager = null;
+        this.messageHandler = null;
 
         this.setupInteractionHandlers();
     }
@@ -40,6 +43,13 @@ class Bot {
         });
     }
 
+    setupMessageHandler() {
+        this.messageHandler = new MessageHandler(this.client);
+        this.client.on('messageCreate', async (message) => {
+            await this.messageHandler.handleMessage(message);
+        });
+    }
+
     async setupCommands() {
         // 加载机器人配置
         const botConfig = require('../config/bot_config.json');
@@ -59,6 +69,14 @@ class Bot {
     setupScanner() {
         this.scannerManager = new ScannerManager(this.client);
         this.scannerManager.scheduleScans();
+        if (process.env.RUN_SCAN_ON_STARTUP === 'true') {
+            console.log('[main_setup]立即启动所有扫描任务...');
+            this.scannerManager.startAllScans();
+        }
+    }
+
+    setupScheduler() {
+        startScheduledTasks();
     }
 
     async start() {
@@ -66,6 +84,8 @@ class Bot {
         this.client.once('ready', async () => {
             await this.setupCommands();
             this.setupScanner();
+            this.setupScheduler();
+            this.setupMessageHandler();
         });
 
         // 登录机器人

@@ -9,8 +9,15 @@ class CreatePostApplyPanelHandler {
         await interaction.deferReply({ ephemeral: true });
 
         try {
-            const role = interaction.options.getRole('role');
+            const roleId = interaction.options.getString('role_id');
             const reactions = interaction.options.getInteger('reactions');
+            const role = await this.validateRole(interaction.guild, roleId);
+
+            if (!role) {
+                return await interaction.editReply({
+                    content: `❌ 错误：未找到ID为 \`${roleId}\` 的身份组。\n请检查ID是否正确，或在服务器设置中启用开发者模式后，右键点击身份组复制其ID。`
+                });
+            }
             const channel = interaction.options.getChannel('channel');
             const targetChannel = interaction.channel;
 
@@ -51,6 +58,16 @@ class CreatePostApplyPanelHandler {
                 operation: '面板创建失败',
                 message: `创建面板失败: ${error.message}`
             });
+        }
+    }
+
+    async validateRole(guild, roleId) {
+        try {
+            const role = await guild.roles.fetch(roleId);
+            return role || null;
+        } catch (error) {
+            console.warn(`Role ${roleId} not found:`, error.message);
+            return null;
         }
     }
 }

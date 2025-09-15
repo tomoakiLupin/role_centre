@@ -27,9 +27,9 @@ class PostApplyValidator {
 
         // 从 modal customId 解析参数: post_apply_modal:post_apply:roleId:reactions[:channelId]
         const parts = interaction.customId.split(':');
-        const roleId = parts[3];
-        const requiredReactions = parseInt(parts[4], 10);
-        const requiredChannelId = parts.length > 5 ? parts[5] : null;
+        const roleId = parts[2];
+        const requiredReactions = parseInt(parts[3], 10);
+        const requiredChannelId = parts.length > 4 ? parts[4] : null;
 
         const role = await interaction.guild.roles.fetch(roleId);
         if (!role) {
