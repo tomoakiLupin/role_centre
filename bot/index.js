@@ -4,6 +4,7 @@ const CommandRegistry = require('../utils/command_registry');
 const CommandService = require('./services/command_service');
 const CommandHandler = require('./interactions/command_handler');
 const ButtonHandler = require('./interactions/button_handler');
+const ModalSubmitHandler = require('./interactions/modal_submit_handler');
 const ScannerManager = require('../scanner/scanner_manager');
 
 class Bot {
@@ -14,6 +15,7 @@ class Bot {
         this.commandService = new CommandService();
         this.commandHandler = new CommandHandler(this.commandRegistry);
         this.buttonHandler = new ButtonHandler();
+        this.modalSubmitHandler = new ModalSubmitHandler();
         this.scannerManager = null;
 
         this.setupInteractionHandlers();
@@ -28,6 +30,11 @@ class Bot {
 
             // 尝试处理按钮交互
             if (await this.buttonHandler.handleInteraction(interaction)) {
+                return;
+            }
+
+            // 尝试处理模态框提交
+            if (await this.modalSubmitHandler.handleInteraction(interaction)) {
                 return;
             }
         });

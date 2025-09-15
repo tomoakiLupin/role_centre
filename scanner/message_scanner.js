@@ -56,6 +56,25 @@ async function scanChannelMessages(channel, options) {
         }
       });
 
+      // 检查并统计无效消息
+      const content = message.content.trim();
+      const hasAttachments = message.attachments.size > 0;
+      const hasStickers = message.stickers.size > 0;
+
+      // 1. 单独的贴纸 (没有文字和附件)
+      const isStickerOnly = hasStickers && content === '' && !hasAttachments;
+      
+      // 2. 单独的表情符号 (没有附件和贴纸)
+      const emojiRegex = /^(?:<a?:\w+:\d{18}>|\p{Emoji_Presentation}|\p{Extended_Pictographic})+$/u;
+      const isEmojiOnly = content.length > 0 && emojiRegex.test(content) && !hasAttachments && !hasStickers;
+
+      // 3. 一句话的字数（UTF-8）< 3 (没有附件和贴纸)
+      const isTooShort = content.length > 0 && content.length < 3 && !hasAttachments && !hasStickers;
+
+      if (isStickerOnly || isEmojiOnly || isTooShort) {
+        stats.invalid_message_count++;
+      }
+
       userStats.set(userId, stats);
     }
 
