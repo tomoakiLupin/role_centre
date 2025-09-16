@@ -20,7 +20,7 @@ class BotClient {
             sendLog(this.client, 'success', {
                 module: '机器人',
                 operation: '上线',
-                message: `机器人 ${this.client.user.tag} 已成功启动并登录。`,
+                message: `机器人 ${this.client.user.tag} 已成功启动并登录`,
             });
         });
     }

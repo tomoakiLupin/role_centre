@@ -51,7 +51,7 @@ class PostApplyRequestHandler {
             });
         } catch (error) {
             console.error('授予身份组时出错:', error);
-            const errorEmbed = createFailureEmbed('身份组授予失败，可能是因为我没有足够的权限。');
+            const errorEmbed = createFailureEmbed('身份组授予失败，可能是因为我没有足够的权限');
             await interaction.editReply({ embeds: [errorEmbed] });
 
             sendLog(interaction.client, 'error', {

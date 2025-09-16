@@ -182,7 +182,7 @@ async function scanChannel(taskId, task) {
                 messagesSinceLastWrite = 0;
             }
         }
-        await sendLog(global.client, 'info', { module: 'Scanner', operation: 'Scan Complete', message: `频道 <#${channel_id}> 扫描完成 \\n共扫描 ${totalMessagesScanned} 条消息 \\n操作了 ${totalMembersAffected} 名成员 ` });
+        await sendLog(global.client, 'info', { module: 'Scanner', operation: 'Scan Complete', message: `频道 <#${channel_id}> 扫描完成  \n共扫描 ${totalMessagesScanned} 条消息  \n操作了 ${totalMembersAffected} 名成员 ` });
     } catch (error) {
         console.error(`扫描频道 ${channel_id} 时出错:`, error);
     } finally {

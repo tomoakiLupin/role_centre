@@ -1,7 +1,7 @@
 const { EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
 
 function createPostApplyEmbed(role, reactions, channel) {
-    const description = `点击下方按钮，通过您在社区内发布的帖子来申请 **${role.name}** 身份组。`;
+    const description = `点击下方按钮，通过您在社区内发布的帖子来申请 **${role.name}** 身份组`;
 
     const embed = new EmbedBuilder()
         .setTitle(`身份组申请 - ${role.name}`)

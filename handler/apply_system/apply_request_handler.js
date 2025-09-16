@@ -4,7 +4,7 @@ const { getEligibilityChecker } = require('../../db/eligibility_checker');
 
 class ApplyRequestHandler {
     async handleApplyButton(interaction) {
-        await interaction.deferReply({ ephemeral: true });
+        await interaction.deferReply({ flags: [64] });
 
         try {
             // 解析配置ID
@@ -52,24 +52,38 @@ class ApplyRequestHandler {
                 roleConfig.data
             );
 
-            if (eligibilityResult.eligible) {
-                // 自动批准
-                await this.approveApplication(interaction, member, roleConfig);
-            } else if (roleConfig.manual_revive) {
-                // 发起人工审核
-                await this.startManualReview(interaction, member, roleConfig, eligibilityResult);
+            if (roleConfig.manual_revive) {
+                // 人工审核流程: 启用后，申请必须满足要求才能发起投票
+                if (eligibilityResult.eligible) {
+                    // 满足要求，发起人工审核
+                    await this.startManualReview(interaction, member, roleConfig, eligibilityResult);
+                } else {
+                    // 不满足要求，直接拒绝
+                    await interaction.editReply({
+                        content: `申请被拒绝\n原因: ${eligibilityResult.reason}\n\n请达到要求后再次申请`
+                    });
+                    sendLog(interaction.client, 'info', {
+                        module: '身份组申请',
+                        operation: '申请被拒绝',
+                        message: `用户 ${member.user.tag} 申请身份组失败 (人工审核路径): ${eligibilityResult.reason}`
+                    });
+                }
             } else {
-                // 拒绝申请
-                await interaction.editReply({
-                    content: `申请被拒绝\n原因: ${eligibilityResult.reason}\n\n请达到要求后再次申请。`
-                });
-
-                // 记录日志
-                sendLog(interaction.client, 'info', {
-                    module: '身份组申请',
-                    operation: '申请被拒绝',
-                    message: `用户 ${member.user.tag} 申请身份组失败: ${eligibilityResult.reason}`
-                });
+                // 自动批准流程
+                if (eligibilityResult.eligible) {
+                    // 满足要求，自动批准
+                    await this.approveApplication(interaction, member, roleConfig);
+                } else {
+                    // 不满足要求，直接拒绝
+                    await interaction.editReply({
+                        content: `申请被拒绝\n原因: ${eligibilityResult.reason}\n\n请达到要求后再次申请`
+                    });
+                    sendLog(interaction.client, 'info', {
+                        module: '身份组申请',
+                        operation: '申请被拒绝',
+                        message: `用户 ${member.user.tag} 申请身份组失败 (自动路径): ${eligibilityResult.reason}`
+                    });
+                }
             }
 
         } catch (error) {
@@ -118,12 +132,21 @@ class ApplyRequestHandler {
 
     async startManualReview(interaction, member, roleConfig, eligibilityResult) {
         try {
-            // 调用投票系统
+            // 检查用户是否已有正在进行的投票
             const voteManager = require('../vote_system/vote_manager');
+            const existingVoteInfo = await voteManager.findActiveVoteByRequester(member.id);
+
+            if (existingVoteInfo) {
+                return await interaction.editReply({
+                    content: `您已经有一个正在进行中的投票 (ID: ${existingVoteInfo.voteId})，请等待该投票结束后再试`
+                });
+            }
+
+            // 调用投票系统
             const voteId = await voteManager.createVote(interaction.client, member, roleConfig);
 
             await interaction.editReply({
-                content: `您的申请已提交人工审核\n检查结果: ${eligibilityResult.reason}\n投票ID: ${voteId}\n\n审核通常在1-24小时内完成，请耐心等待。`
+                content: `您的申请已提交人工审核\n检查结果: ${eligibilityResult.reason}\n投票ID: ${voteId}\n\n审核通常在1-24小时内完成，请耐心等待`
             });
 
             // 记录日志

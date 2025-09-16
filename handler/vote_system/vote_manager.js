@@ -3,33 +3,67 @@ const path = require('path');
 const { EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
 const { sendLog } = require('../../utils/logger');
 
-const votesFilePath = path.join(__dirname, '..', '..', 'data', 'votes.json');
+const votesDirPath = path.join(__dirname, '..', '..', 'data', 'votes');
 
-// Helper to ensure the votes file exists
-async function ensureVotesFile() {
+// Helper to ensure the votes directory exists
+async function ensureVotesDir() {
   try {
-    await fs.access(votesFilePath);
+    await fs.access(votesDirPath);
   } catch (error) {
-    await fs.writeFile(votesFilePath, JSON.stringify({}));
+    await fs.mkdir(votesDirPath, { recursive: true });
   }
 }
 
-// Helper to read vote data
-async function getVotes() {
-  await ensureVotesFile();
-  const data = await fs.readFile(votesFilePath, 'utf8');
-  return JSON.parse(data);
+// Helper to get the path for a specific vote file
+function getVoteFilePath(voteId) {
+    // Basic validation to prevent path traversal
+    if (/[\\/]/.test(voteId)) {
+        throw new Error('Invalid voteId format');
+    }
+    return path.join(votesDirPath, `${voteId}.json`);
 }
 
-// Helper to save vote data
-async function saveVotes(data) {
-  await fs.writeFile(votesFilePath, JSON.stringify(data, null, 2));
+
+// Helper to read a specific vote data
+async function getVote(voteId) {
+  await ensureVotesDir();
+  const filePath = getVoteFilePath(voteId);
+  try {
+    const data = await fs.readFile(filePath, 'utf8');
+    return JSON.parse(data);
+  } catch (error) {
+    if (error.code === 'ENOENT') {
+        return null; // Vote file not found, return null
+    }
+    throw error; // Re-throw other errors
+  }
+}
+
+// Helper to save a specific vote data
+async function saveVote(voteId, data) {
+  await ensureVotesDir();
+  const filePath = getVoteFilePath(voteId);
+  await fs.writeFile(filePath, JSON.stringify(data, null, 2));
+}
+
+// Helper to delete a specific vote file
+async function deleteVote(voteId) {
+    await ensureVotesDir();
+    const filePath = getVoteFilePath(voteId);
+    try {
+        await fs.unlink(filePath);
+    } catch (error) {
+        if (error.code !== 'ENOENT') {
+            console.error(`[voteManager/deleteVote] Error deleting vote file for ${voteId}:`, error);
+            throw error;
+        }
+    }
 }
 
 // Called from apply_request_handler.js to start a new vote
 async function createVote(client, member, config) {
   const { revive_config, data: configData, guild_id } = config;
-  const { review_channel_id } = revive_config;
+  const { review_channel_id, allow_vote_role } = revive_config;
   const { role_id: targetRoleId } = configData;
 
   if (!review_channel_id) {
@@ -51,8 +85,8 @@ async function createVote(client, member, config) {
       { name: '申请人', value: `<@${member.id}>`, inline: true },
       { name: '申请身份组', value: `<@&${targetRoleId}>`, inline: true },
       { name: '当前状态', value: '投票中...', inline: false },
-      { name: '👍 同意', value: '管理员: 0/-\\n用户: 0/-', inline: true },
-      { name: '👎 拒绝', value: '管理员: 0/-\\n用户: 0/-', inline: true }
+      { name: '👍 同意', value: '管理员: 0/-\n用户: 0/-', inline: true },
+      { name: '👎 拒绝', value: '管理员: 0/-\n用户: 0/-', inline: true }
     )
     .setTimestamp()
     .setFooter({ text: `投票ID: ${voteId}` });
@@ -71,10 +105,22 @@ async function createVote(client, member, config) {
         .setEmoji('👎')
     );
 
-  const voteMessage = await reviewChannel.send({ embeds: [voteEmbed], components: [row] });
+  const adminRole = allow_vote_role?.admin;
+  const userRole = allow_vote_role?.user;
+  let mentionContent = '';
+  if (adminRole) {
+    mentionContent += `<@&${adminRole}> `;
+  }
+  if (userRole) {
+    mentionContent += `<@&${userRole}>`;
+  }
+  if (mentionContent) {
+      mentionContent = `${mentionContent.trim()} 新的投票申请`;
+  }
 
-  const votes = await getVotes();
-  votes[voteId] = {
+  const voteMessage = await reviewChannel.send({ content: mentionContent, embeds: [voteEmbed], components: [row] });
+
+  const voteData = {
     messageId: voteMessage.id,
     channelId: reviewChannel.id,
     requesterId: member.id,
@@ -87,14 +133,14 @@ async function createVote(client, member, config) {
     }
   };
 
-  await saveVotes(votes);
+  await saveVote(voteId, voteData);
   console.log(`[voteManager/createVote] 已为用户 ${member.id} 的申请创建投票，ID: ${voteId}`);
 
   // Send log
   await sendLog(client, 'info', {
     module: '投票系统',
     operation: '发起投票',
-    message: `为用户 <@${member.id}> 的身份组申请 <@&${targetRoleId}> 发起了投票 \\n[点击查看投票](https://discord.com/channels/${guild_id}/${reviewChannel.id}/${voteMessage.id})\\n投票ID: ${voteId}`
+    message: `为用户 <@${member.id}> 的身份组申请 <@&${targetRoleId}> 发起了投票  \n[点击查看投票](https://discord.com/channels/${guild_id}/${reviewChannel.id}/${voteMessage.id}) \n投票ID: ${voteId}`
   });
 
   return voteId;
@@ -102,8 +148,7 @@ async function createVote(client, member, config) {
 
 // Called from voteHandler.js to check the status after a vote
 async function checkVoteStatus(client, voteId) {
-  const allVotes = await getVotes();
-  const voteData = allVotes[voteId];
+  const voteData = await getVote(voteId);
 
   if (!voteData || !['pending', 'pending_admin'].includes(voteData.status)) {
     return;
@@ -180,8 +225,8 @@ async function checkVoteStatus(client, voteId) {
       originalEmbed.fields[0],
       originalEmbed.fields[1],
       { name: '当前状态', value: '投票中...', inline: false },
-      { name: '👍 同意', value: `管理员: ${adminApprovals}/${ratio_allow.admin}\\n用户: ${userApprovals}/${ratio_allow.user}`, inline: true },
-      { name: '👎 拒绝', value: `管理员: ${adminRejections}/${ratio_reject.admin}\\n用户: ${userRejections}/${ratio_reject.user}`, inline: true }
+      { name: '👍 同意', value: `管理员: ${adminApprovals}/${ratio_allow.admin}\n用户: ${userApprovals}/${ratio_allow.user}`, inline: true },
+      { name: '👎 拒绝', value: `管理员: ${adminRejections}/${ratio_reject.admin}\n用户: ${userRejections}/${ratio_reject.user}`, inline: true }
     );
 
   await message.edit({ embeds: [updatedEmbed] });
@@ -189,8 +234,7 @@ async function checkVoteStatus(client, voteId) {
 
 // Called when user vote passes, waiting for admin action
 async function startPendingPeriod(client, voteId) {
-    const allVotes = await getVotes();
-    const voteData = allVotes[voteId];
+    const voteData = await getVote(voteId);
 
     if (!voteData || voteData.status !== 'pending') {
         return;
@@ -201,7 +245,7 @@ async function startPendingPeriod(client, voteId) {
 
     voteData.status = 'pending_admin';
     voteData.pendingUntil = pendingUntil.toISOString();
-    await saveVotes(allVotes);
+    await saveVote(voteId, voteData);
 
     const { channelId, messageId, config, requesterId, targetRoleId } = voteData;
     const guild = await client.guilds.fetch(config.guild_id);
@@ -228,24 +272,24 @@ async function startPendingPeriod(client, voteId) {
     await sendLog(client, 'info', {
         module: '投票系统',
         operation: '进入管理员等待期',
-        message: `用户 <@${requesterId}> 的申请 <@&${targetRoleId}> 用户投票已达标，进入24小时等待期 \\n[点击查看投票](https://discord.com/channels/${config.guild_id}/${channelId}/${messageId})\\n投票ID: ${voteId}`
+        message: `用户 <@${requesterId}> 的申请 <@&${targetRoleId}> 用户投票已达标，进入24小时等待期  \n[点击查看投票](https://discord.com/channels/${config.guild_id}/${channelId}/${messageId}) \n投票ID: ${voteId}`
     });
 }
 
 // Called by checkVoteStatus to finalize the vote
 async function finalizeVote(client, voteId, result) {
-  const allVotes = await getVotes();
-  const voteData = allVotes[voteId];
+  const voteData = await getVote(voteId);
 
   if (!voteData || !['pending', 'pending_admin'].includes(voteData.status)) {
     return;
   }
 
+  // Don't delete the vote data immediately, first update the message
   voteData.status = result;
   if (voteData.pendingUntil) {
     delete voteData.pendingUntil;
   }
-  await saveVotes(allVotes);
+  
   const { requesterId, targetRoleId, channelId, messageId, config } = voteData;
   const guild = await client.guilds.fetch(config.guild_id);
   if (!guild) {
@@ -297,15 +341,35 @@ async function finalizeVote(client, voteId, result) {
   await sendLog(client, result === 'approved' ? 'success' : 'warning', {
     module: '投票系统',
     operation: '投票结束',
-    message: `用户 <@${requesterId}> 的申请投票已结束，结果为 **${result === 'approved' ? '通过' : '拒绝'}** \\n[点击查看投票](https://discord.com/channels/${config.guild_id}/${channelId}/${messageId})\\n投票ID: ${voteId}`
+    message: `用户 <@${requesterId}> 的申请投票已结束，结果为 **${result === 'approved' ? '通过' : '拒绝'}**  \n[点击查看投票](https://discord.com/channels/${config.guild_id}/${channelId}/${messageId}) \n投票ID: ${voteId}`
   });
+
+  // Clean up the vote file after it's finalized
+  await deleteVote(voteId);
+}
+
+// Helper to find an active vote by requester ID
+async function findActiveVoteByRequester(requesterId) {
+    await ensureVotesDir();
+    const files = await fs.readdir(votesDirPath);
+    for (const file of files) {
+        if (path.extname(file) === '.json') {
+            const voteId = path.basename(file, '.json');
+            const voteData = await getVote(voteId);
+            if (voteData && voteData.requesterId === requesterId && ['pending', 'pending_admin'].includes(voteData.status)) {
+                return { voteId, voteData };
+            }
+        }
+    }
+    return null;
 }
 
 module.exports = {
   createVote,
-  getVotes,
-  saveVotes,
   checkVoteStatus,
   finalizeVote,
-  startPendingPeriod
+  startPendingPeriod,
+  findActiveVoteByRequester,
+  getVote,
+  saveVote
 };

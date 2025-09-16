@@ -18,7 +18,7 @@ class CommandHandler {
         const handler = this.commandRegistry.getHandler(interaction.commandName);
 
         if (!handler) {
-            await interaction.reply({ content: '未知的命令。', ephemeral: true });
+            await interaction.reply({ content: '未知的命令', ephemeral: true });
             return true;
         }
 
@@ -27,7 +27,7 @@ class CommandHandler {
         const userPermissionLevel = getPermissionLevel(interaction.user.id, userRoles);
 
         if (userPermissionLevel < (handler.requiredPermission || PERMISSION_LEVELS.USER)) {
-            await interaction.reply({ content: '❌ 您没有足够的权限来执行此命令。', ephemeral: true });
+            await interaction.reply({ content: '❌ 您没有足够的权限来执行此命令', ephemeral: true });
             return true;
         }
 
@@ -35,7 +35,7 @@ class CommandHandler {
             await handler.execute(interaction);
         } catch (error) {
             console.error(`执行命令 ${interaction.commandName} 时出错:`, error);
-            const reply = { content: '执行此命令时发生错误。', ephemeral: true };
+            const reply = { content: '执行此命令时发生错误', ephemeral: true };
             if (interaction.replied || interaction.deferred) {
                 await interaction.followUp(reply);
             } else {

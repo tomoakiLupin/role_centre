@@ -6,8 +6,8 @@ const path = require('path');
 
 class RoleLeaveButtonHandler {
     constructor() {
-        this.cacheFilePath = path.join(__dirname, '../data/cache/role_leave.json');
-        this.logFilePath = path.join(__dirname, '../data/log/role_leave_log.json');
+        this.cacheFilePath = path.join(process.cwd(), 'data/cache/role_leave.json');
+        this.logFilePath = path.join(process.cwd(), 'data/log/role_leave_log.json');
         this.cacheEditor = new FileEditor(this.cacheFilePath);
         this.logEditor = new FileEditor(this.logFilePath);
     }

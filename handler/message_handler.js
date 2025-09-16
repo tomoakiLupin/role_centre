@@ -48,7 +48,7 @@ class MessageHandler {
             if (!role) {
                 console.error(`[MessageHandler] Role with ID ${config.role_id} not found in guild ${message.guild.id}`);
                 try {
-                    await message.channel.send(`⚠️ **错误**: 无法找到身份组 ID \`${config.role_id}\`。请管理员检查配置。`);
+                    await message.channel.send(`⚠️ **错误**: 无法找到身份组 ID \`${config.role_id}\`请管理员检查配置`);
                 } catch (sendError) {
                     console.error(`[MessageHandler] Failed to send error message to channel:`, sendError);
                 }

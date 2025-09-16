@@ -5,10 +5,11 @@ class ButtonHandler {
         this.applyRequestHandler = require('../../handler/apply_system/apply_request_handler');
         this.postApplyRequestHandler = require('../../handler/apply_system/post_apply_request_handler');
         this.voteHandler = require('../../handler/vote_system/vote_handler');
+        this.manageMyRolesButtonHandler = require('../../handler/button_handler/manage_my_roles_button_handler');
     }
 
     async handleInteraction(interaction) {
-        if (!interaction.isButton()) {
+        if (!interaction.isButton() && !interaction.isStringSelectMenu()) {
             return false;
         }
 
@@ -19,17 +20,23 @@ class ButtonHandler {
                 await this.postApplyRequestHandler.handlePostApplyButton(interaction);
             } else if (interaction.customId.startsWith('vote:')) {
                 await this.voteHandler.handleVote(interaction);
-            } else if (interaction.customId.startsWith('role_leave:')) {
+            } else if (interaction.customId.startsWith('role_leave_panel:')) {
                 const cacheId = interaction.customId.split(':')[1];
                 await this.roleLeaveButtonHandler.execute(interaction, cacheId);
             } else if (interaction.customId.startsWith('role_join:') || interaction.customId.startsWith('role_leave:')) {
                 await this.roleButtonHandler.execute(interaction);
+            } else if (interaction.customId.startsWith('manage_my_roles:')) {
+                await this.manageMyRolesButtonHandler.execute(interaction);
             } else {
-                await interaction.reply({ content: '未知的按钮操作。', ephemeral: true });
+                // For button interactions that don't match, we can provide a generic response.
+                // For select menus, it's often better to just let them be, as they might be part of a multi-step process handled elsewhere.
+                if (interaction.isButton()) {
+                    await interaction.reply({ content: '未知的按钮操作', ephemeral: true });
+                }
             }
         } catch (error) {
-            console.error('处理按钮交互时出错:', error);
-            const reply = { content: '处理按钮交互时发生错误，请稍后重试。', ephemeral: true };
+            console.error('处理组件交互时出错:', error);
+            const reply = { content: '处理组件交互时发生错误，请稍后重试', flags: [64] };
             if (interaction.replied || interaction.deferred) {
                 await interaction.followUp(reply);
             } else {

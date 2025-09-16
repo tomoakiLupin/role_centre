@@ -15,7 +15,7 @@ class CreatePostApplyPanelHandler {
 
             if (!role) {
                 return await interaction.editReply({
-                    content: `❌ 错误：未找到ID为 \`${roleId}\` 的身份组。\n请检查ID是否正确，或在服务器设置中启用开发者模式后，右键点击身份组复制其ID。`
+                    content: `❌ 错误：未找到ID为 \`${roleId}\` 的身份组\n请检查ID是否正确，或在服务器设置中启用开发者模式后，右键点击身份组复制其ID`
                 });
             }
             const channel = interaction.options.getChannel('channel');

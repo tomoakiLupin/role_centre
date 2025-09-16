@@ -9,7 +9,7 @@ class RoleLeavePanelUI {
 
         const embed = new EmbedBuilder()
             .setTitle('🚪 退出身份组')
-            .setDescription('点击下方按钮退出指定的身份组。')
+            .setDescription('点击下方按钮退出指定的身份组')
             .setColor(0xff6b6b)
             .addFields(
                 {
@@ -32,7 +32,7 @@ class RoleLeavePanelUI {
             .setFooter({ text: `缓存ID: ${cacheId}` });
 
         const leaveButton = new ButtonBuilder()
-            .setCustomId(`role_leave:${cacheId}`)
+            .setCustomId(`role_leave_panel:${cacheId}`)
             .setLabel('退出身份组')
             .setStyle(ButtonStyle.Danger)
             .setEmoji('🚪');
@@ -48,7 +48,7 @@ class RoleLeavePanelUI {
     static createLeaveConfirmation(user, leftRoles) {
         const embed = new EmbedBuilder()
             .setTitle('✅ 成功退出身份组')
-            .setDescription('您已成功退出指定的身份组。')
+            .setDescription('您已成功退出指定的身份组')
             .setColor(0x00ff00)
             .addFields(
                 {
@@ -73,22 +73,22 @@ class RoleLeavePanelUI {
         switch (errorType) {
             case 'no_roles':
                 title = '⚠️ 没有可退出的身份组';
-                description = '您没有任何指定的身份组可以退出。';
+                description = '您没有任何指定的身份组可以退出';
                 color = 0xffaa00;
                 break;
             case 'permission_denied':
                 title = '❌ 权限不足';
-                description = '您没有权限执行此操作。';
+                description = '您没有权限执行此操作';
                 color = 0xff0000;
                 break;
             case 'cache_expired':
                 title = '⏰ 操作已过期';
-                description = '此退出面板已过期或不存在。';
+                description = '此退出面板已过期或不存在';
                 color = 0xff6b6b;
                 break;
             default:
                 title = '❌ 操作失败';
-                description = '执行操作时发生未知错误。';
+                description = '执行操作时发生未知错误';
                 color = 0xff0000;
         }
 

@@ -73,7 +73,7 @@ class BatchRoleAssignHandler {
             // 生成报告并请求用户确认
             const confirmationEmbed = new EmbedBuilder()
                 .setTitle('🔍 批量分发确认')
-                .setDescription('请检查以下信息，确认无误后点击“确认”按钮。')
+                .setDescription('请检查以下信息，确认无误后点击“确认”按钮')
                 .setColor(0xffa500) // Orange
                 .addFields(
                     { name: '🏷️ 身份组', value: [role1.name, role2?.name].filter(Boolean).join(', ') || '无', inline: true },
@@ -110,7 +110,7 @@ class BatchRoleAssignHandler {
 
             collector.on('collect', async i => {
                 if (i.user.id !== interaction.user.id) {
-                    return i.reply({ content: '❌ 你不能操作这个按钮。', ephemeral: true });
+                    return i.reply({ content: '❌ 你不能操作这个按钮', ephemeral: true });
                 }
 
                 await i.deferUpdate();

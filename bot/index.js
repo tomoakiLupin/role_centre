@@ -7,6 +7,8 @@ const ButtonHandler = require('./interactions/button_handler');
 const ModalSubmitHandler = require('./interactions/modal_submit_handler');
 const { startScheduledTasks } = require('./services/scheduler_service');
 const MessageHandler = require('../handler/message_handler');
+const { generateRoleMappingFile } = require('../handler/role_mapping_handler');
+const { convertRoleAssignments } = require('../utils/role_assignment_converter');
 
 class Bot {
     constructor() {
@@ -82,7 +84,9 @@ class Bot {
 
     async start() {
         // 设置ready事件处理
-        this.client.once('ready', async () => {
+        this.client.once('clientReady', async () => {
+            await convertRoleAssignments();
+            await generateRoleMappingFile(this.client);
             await this.setupCommands();
             this.setupScanner();
             this.setupScheduler();

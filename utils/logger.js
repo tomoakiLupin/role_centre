@@ -16,7 +16,7 @@ async function sendLog(client, level, details) {
   const levelInfo = config.get(`log.logger_config.log_levels.${level}`);
 
   if (!logChannelId || !levelInfo) {
-    console.error('日志配置不完整，无法发送日志。');
+    console.error('日志配置不完整，无法发送日志');
     return;
   }
 

@@ -36,7 +36,7 @@ class RolePanelUI {
     static createRoleFeedback(action, roleName, success = true) {
         const embed = new EmbedBuilder()
             .setTitle(success ? `✅ 操作成功` : `❌ 操作失败`)
-            .setDescription(success ? `您已成功 **${action === 'join' ? '加入' : '退出'}** \`${roleName}\` 身份组。` : `操作失败，请联系管理员。`)
+            .setDescription(success ? `您已成功 **${action === 'join' ? '加入' : '退出'}** \`${roleName}\` 身份组` : `操作失败，请联系管理员`)
             .setColor(success ? 0x00ff00 : 0xff0000)
             .setTimestamp();
 

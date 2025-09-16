@@ -35,7 +35,7 @@ function initDatabase(dbPath) {
             console.error('创建 user_stats 表失败:', err.message);
             reject(err);
           } else {
-            console.log('user_stats 表已成功创建或已存在。');
+            console.log('user_stats 表已成功创建或已存在');
             // Add username column if it doesn't exist
             db.all("PRAGMA table_info(user_stats)", (err, columns) => {
               if (err) {
@@ -50,7 +50,7 @@ function initDatabase(dbPath) {
                     console.error('添加 username 列失败:', err.message);
                     reject(err);
                   } else {
-                    console.log('成功添加 username 列。');
+                    console.log('成功添加 username 列');
                     resolve(db);
                   }
                 });
