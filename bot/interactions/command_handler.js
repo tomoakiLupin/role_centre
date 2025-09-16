@@ -26,7 +26,11 @@ class CommandHandler {
         const userRoles = interaction.member.roles.cache.map(role => role.id);
         const userPermissionLevel = getPermissionLevel(interaction.user.id, userRoles);
 
-        if (userPermissionLevel < (handler.requiredPermission || PERMISSION_LEVELS.USER)) {
+        const requiredPermission = handler.requiredPermission !== undefined && handler.requiredPermission !== null
+            ? handler.requiredPermission
+            : PERMISSION_LEVELS.USER;
+
+        if (userPermissionLevel < requiredPermission) {
             await interaction.reply({ content: '❌ 您没有足够的权限来执行此命令', ephemeral: true });
             return true;
         }

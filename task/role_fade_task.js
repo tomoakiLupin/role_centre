@@ -34,7 +34,7 @@ async function scanAndProcess(client) {
 
     const assignments = await assignmentsEditor.read();
     if (!assignments) {
-        console.log('没有找到身份组分配文件，跳过扫描。');
+        console.log('没有找到身份组分配文件，跳过扫描');
         return;
     }
 
@@ -51,7 +51,7 @@ async function scanAndProcess(client) {
     }
 
     if (expiredOps.length === 0) {
-        console.log('没有发现过期的身份组。');
+        console.log('没有发现过期的身份组');
         return;
     }
 
@@ -79,7 +79,7 @@ async function scanAndProcess(client) {
 
                         await member.roles.set(newRoles);
                         processedUsers.push(userId.toString());
-                        console.log(`用户 ${member.user.tag} 的身份组已更新。`);
+                        console.log(`用户 ${member.user.tag} 的身份组已更新`);
                     }
                 } catch (error) {
                     console.error(`处理用户 ${userId} 时出错:`, error);
@@ -96,7 +96,7 @@ async function scanAndProcess(client) {
     );
 
     await assignmentsEditor.write(updatedAssignments);
-    console.log('身份组分配文件已更新。');
+    console.log('身份组分配文件已更新');
 }
 
 module.exports = {
