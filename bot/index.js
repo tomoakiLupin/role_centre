@@ -68,7 +68,7 @@ class Bot {
     }
 
     setupScanner() {
-        const scannerManager = require('../scanner/scanner_manager');
+        const scannerManager = require('../task/scanner_manager');
         // 设置全局客户端引用
         global.client = this.client;
         // 直接调用 cron.schedule，它已经在 scanner_manager.js 中设置
@@ -79,7 +79,7 @@ class Bot {
     }
 
     setupScheduler() {
-        startScheduledTasks();
+        startScheduledTasks(this.client);
     }
 
     async start() {
