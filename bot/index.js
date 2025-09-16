@@ -5,7 +5,6 @@ const CommandService = require('./services/command_service');
 const CommandHandler = require('./interactions/command_handler');
 const ButtonHandler = require('./interactions/button_handler');
 const ModalSubmitHandler = require('./interactions/modal_submit_handler');
-const ScannerManager = require('../scanner/scanner_manager');
 const { startScheduledTasks } = require('./services/scheduler_service');
 const MessageHandler = require('../handler/message_handler');
 
@@ -67,11 +66,13 @@ class Bot {
     }
 
     setupScanner() {
-        this.scannerManager = new ScannerManager(this.client);
-        this.scannerManager.scheduleScans();
+        const scannerManager = require('../scanner/scanner_manager');
+        // 设置全局客户端引用
+        global.client = this.client;
+        // 直接调用 cron.schedule，它已经在 scanner_manager.js 中设置
         if (process.env.RUN_SCAN_ON_STARTUP === 'true') {
             console.log('[main_setup]立即启动所有扫描任务...');
-            this.scannerManager.startAllScans();
+            scannerManager.scanTask();
         }
     }
 
