@@ -314,7 +314,12 @@ async function finalizeVote(client, voteId, result) {
     if (requester) {
       await requester.roles.add(targetRoleId);
       try {
-        await requester.send(`🎉 恭喜！您在 **${guild.name}** 的身份组申请 **(<@&${targetRoleId}>)** 已通过人工审核 `);
+        const approvalEmbed = new EmbedBuilder()
+          .setColor(0x2ecc71)
+          .setTitle('身份组申请已通过')
+          .setDescription(`恭喜！您在 **${guild.name}** 的身份组申请 **<@&${targetRoleId}>** 已通过人工审核`)
+          .setTimestamp();
+        await requester.send({ embeds: [approvalEmbed] });
       } catch (e) {
         console.log(`[voteManager/finalizeVote] 无法私信用户 ${requesterId}`);
       }
@@ -327,7 +332,12 @@ async function finalizeVote(client, voteId, result) {
     );
     if (requester) {
       try {
-        await requester.send(`很抱歉，您在 **${guild.name}** 的身份组申请 **(<@&${targetRoleId}>)** 未通过人工审核 `);
+        const rejectionEmbed = new EmbedBuilder()
+          .setColor(0xe74c3c)
+          .setTitle('身份组申请被拒绝')
+          .setDescription(`很抱歉，您在 **${guild.name}** 的身份组申请 **<@&${targetRoleId}>** 未通过人工审核`)
+          .setTimestamp();
+        await requester.send({ embeds: [rejectionEmbed] });
       } catch (e) {
         console.log(`[voteManager/finalizeVote] 无法私信用户 ${requesterId}`);
       }

@@ -12,6 +12,13 @@ class ButtonHandler {
         if (!interaction.isButton() && !interaction.isStringSelectMenu()) {
             return false;
         }
+        
+        const { isBlacklisted, getRandomReason } = require('../../utils/blacklist');
+        if (isBlacklisted(interaction.user.id, interaction.customId)) {
+            const reason = getRandomReason();
+            await interaction.reply({ content: reason, ephemeral: true });
+            return;
+        }
 
         try {
             if (interaction.customId.startsWith('apply:')) {
