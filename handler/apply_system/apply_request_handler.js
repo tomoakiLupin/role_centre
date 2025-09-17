@@ -1,6 +1,8 @@
+const { EmbedBuilder } = require('discord.js');
 const { config } = require('../../config/config');
 const { sendLog } = require('../../utils/logger');
 const { getEligibilityChecker } = require('../../db/eligibility_checker');
+const rejectionManager = require('../../utils/rejection_manager');
 
 class ApplyRequestHandler {
     async handleApplyButton(interaction) {
@@ -29,6 +31,23 @@ class ApplyRequestHandler {
 
             const member = interaction.member;
             const targetRoleId = roleConfig.data.role_id;
+
+           // 检查用户是否已经被拒绝
+           const rejectionStatus = await rejectionManager.isRejected(member.id, targetRoleId);
+           if (rejectionStatus.rejected) {
+               const embed = new EmbedBuilder()
+                   .setColor(0xe74c3c) // Red
+                   .setTitle('申请被拒绝');
+
+               if (rejectionStatus.rejection.type === 'permanent') {
+                   embed.setDescription('您已被永久禁止申请此身份组');
+               } else if (rejectionStatus.rejection.type === 'temporary') {
+                   const expiry = new Date(rejectionStatus.rejection.expiry);
+                   embed.setDescription(`您的申请已被临时拒绝`)
+                        .addFields({ name: '解禁时间', value: `<t:${Math.floor(expiry.getTime() / 1000)}:R>` });
+               }
+               return await interaction.editReply({ embeds: [embed] });
+           }
 
             // 检查用户是否已经拥有该身份组
             if (member.roles.cache.has(targetRoleId)) {
@@ -59,8 +78,9 @@ class ApplyRequestHandler {
                     await this.startManualReview(interaction, member, roleConfig, eligibilityResult);
                 } else {
                     // 不满足要求，直接拒绝
+                    await rejectionManager.addTemporaryRejection(member.id, targetRoleId, 72);
                     await interaction.editReply({
-                        content: `申请被拒绝\n原因: ${eligibilityResult.reason}\n\n请达到要求后再次申请`
+                        content: `申请被拒绝\n原因: ${eligibilityResult.reason}\n\n您已被临时禁止申请此身份组 72 小时`
                     });
                     sendLog(interaction.client, 'info', {
                         module: '身份组申请',
@@ -75,8 +95,9 @@ class ApplyRequestHandler {
                     await this.approveApplication(interaction, member, roleConfig);
                 } else {
                     // 不满足要求，直接拒绝
+                   await rejectionManager.addTemporaryRejection(member.id, targetRoleId, 72);
                     await interaction.editReply({
-                        content: `申请被拒绝\n原因: ${eligibilityResult.reason}\n\n请达到要求后再次申请`
+                        content: `申请被拒绝\n原因: ${eligibilityResult.reason}\n\n您已被临时禁止申请此身份组 72 小时`
                     });
                     sendLog(interaction.client, 'info', {
                         module: '身份组申请',

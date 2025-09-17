@@ -14,7 +14,7 @@ class ButtonHandler {
         }
         
         const { isBlacklisted, getRandomReason } = require('../../utils/blacklist');
-        if (isBlacklisted(interaction.user.id, interaction.customId)) {
+        if (await isBlacklisted(interaction.user.id, interaction.customId)) {
             const reason = getRandomReason();
             await interaction.reply({ content: reason, ephemeral: true });
             return;

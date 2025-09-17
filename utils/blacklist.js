@@ -9,9 +9,9 @@ const REJECTION_REASONS = [
     "系统检测到异常，操作已中止",
     "API 请求超时，可能是 bot 服务器无法与 DC 网关正常通信",
     "bot暂时无法响应您的请求",
-    "警告，数据库表检查错误，user_status 为空",
+    "警告，数据库返回：usertag无法解析",
     "处理数据库失败，配置文件似乎出现了语法错误",
-    "我们遇到了一些技术问题，请耐心等待",
+    "我们遇到了一些技术问题，错误已报告开发者，请耐心等待",
     "操作超时，无法连接 Grpc 远程数据库"
 ];
 
@@ -35,13 +35,16 @@ function getRandomReason() {
     return cachedReason;
 }
 
+const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
+
 /**
  * 检查用户是否在特定交互的黑名单中
  * @param {string} userId - 用户的Discord ID
  * @param {string} customId - 交互的customId
- * @returns {boolean} - 如果用户在黑名单中则返回true，否则返回false
+ * @returns {Promise<boolean>} - 如果用户在黑名单中则返回true，否则返回false
  */
-function isBlacklisted(userId, customId) {
+async function isBlacklisted(userId, customId) {
+    await sleep(2000); // 2秒固定延迟
     const blacklist = config.get('blacklist.blacklist');
     if (!blacklist || !userId || !customId) {
         return false;

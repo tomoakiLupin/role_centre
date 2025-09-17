@@ -2,6 +2,7 @@ const fs = require('fs/promises');
 const path = require('path');
 const { EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
 const { sendLog } = require('../../utils/logger');
+const rejectionManager = require('../../utils/rejection_manager');
 
 const votesDirPath = path.join(__dirname, '..', '..', 'data', 'votes');
 
@@ -75,7 +76,7 @@ async function createVote(client, member, config) {
     throw new Error(`找不到 ID 为 ${review_channel_id} 的审核频道`);
   }
 
-  const voteId = `${Date.now()}-${member.id}`;
+  const voteId = `${targetRoleId}-${Date.now()}-${member.id}`;
 
   const voteEmbed = new EmbedBuilder()
     .setTitle('身份组申请人工审核')
@@ -202,7 +203,8 @@ async function checkVoteStatus(client, voteId) {
 
   // If an admin rejects at any time, the vote is immediately rejected.
   if (isRejected) {
-    return finalizeVote(client, voteId, 'rejected');
+    const adminRejected = adminRejections >= ratio_reject.admin && ratio_reject.admin > 0;
+    return finalizeVote(client, voteId, 'rejected', adminRejected);
   }
 
   // If an admin approves, the vote is immediately approved.
@@ -277,7 +279,7 @@ async function startPendingPeriod(client, voteId) {
 }
 
 // Called by checkVoteStatus to finalize the vote
-async function finalizeVote(client, voteId, result) {
+async function finalizeVote(client, voteId, result, adminRejected = false) {
   const voteData = await getVote(voteId);
 
   if (!voteData || !['pending', 'pending_admin'].includes(voteData.status)) {
@@ -341,6 +343,14 @@ async function finalizeVote(client, voteId, result) {
       } catch (e) {
         console.log(`[voteManager/finalizeVote] 无法私信用户 ${requesterId}`);
       }
+    }
+    // Add to rejection list if rejected
+    if (result === 'rejected') {
+        if (adminRejected) {
+            await rejectionManager.addPermanentRejection(requesterId, targetRoleId);
+        } else {
+            await rejectionManager.addTemporaryRejection(requesterId, targetRoleId, 720); // 30 days
+        }
     }
   }
 
