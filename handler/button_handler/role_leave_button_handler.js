@@ -16,7 +16,51 @@ class RoleLeaveButtonHandler {
         await interaction.deferReply({ ephemeral: true });
 
         try {
-            // 获取缓存数据
+            const cacheData = await this.cacheEditor.read();
+            const key = CacheMatch.formatCustomId('role_leave', cacheId);
+
+            if (!cacheData || !cacheData[key]) {
+                const errorMessage = RoleLeavePanelUI.createErrorMessage('cache_expired');
+                return await interaction.editReply(errorMessage);
+            }
+
+            const panelData = cacheData[key];
+            const { roleIds, roleNames, guildId } = panelData;
+
+            if (interaction.guild.id !== guildId) {
+                const errorMessage = RoleLeavePanelUI.createErrorMessage('permission_denied');
+                return await interaction.editReply(errorMessage);
+            }
+
+            const member = await interaction.guild.members.fetch(interaction.user.id);
+            const userRoles = member.roles.cache;
+
+            const roleNamesToLeave = [];
+            for (let i = 0; i < roleIds.length; i++) {
+                if (userRoles.has(roleIds[i])) {
+                    roleNamesToLeave.push(roleNames[i]);
+                }
+            }
+
+            if (roleNamesToLeave.length === 0) {
+                const errorMessage = RoleLeavePanelUI.createErrorMessage('no_roles');
+                return await interaction.editReply(errorMessage);
+            }
+
+            const confirmationPrompt = RoleLeavePanelUI.createLeaveConfirmationPrompt(cacheId, roleNamesToLeave);
+            await interaction.editReply(confirmationPrompt);
+
+        } catch (error) {
+            console.error('Error preparing role leave confirmation:', error);
+            const errorMessage = RoleLeavePanelUI.createErrorMessage('general');
+            await interaction.editReply(errorMessage).catch(() => {});
+        }
+    }
+
+    async handleConfirm(interaction, cacheId) {
+        await interaction.deferUpdate();
+
+        try {
             const cacheData = await this.cacheEditor.read();
             const key = CacheMatch.formatCustomId('role_leave', cacheId);
 
@@ -28,13 +72,11 @@ class RoleLeaveButtonHandler {
             const panelData = cacheData[key];
             const { roleIds, roleNames, enableLogging, guildId } = panelData;
 
-            // 验证服务器
             if (interaction.guild.id !== guildId) {
                 const errorMessage = RoleLeavePanelUI.createErrorMessage('permission_denied');
                 return await interaction.editReply(errorMessage);
             }
 
-            // 获取用户当前拥有的身份组
             const member = await interaction.guild.members.fetch(interaction.user.id);
             const userRoles = member.roles.cache;
 
@@ -42,12 +84,9 @@ class RoleLeaveButtonHandler {
             const roleNamesToRemove = [];
 
             for (let i = 0; i < roleIds.length; i++) {
-                const roleId = roleIds[i];
-                const roleName = roleNames[i];
-
-                if (userRoles.has(roleId)) {
-                    rolesToRemove.push(roleId);
-                    roleNamesToRemove.push(roleName);
+                if (userRoles.has(roleIds[i])) {
+                    rolesToRemove.push(roleIds[i]);
+                    roleNamesToRemove.push(roleNames[i]);
                 }
             }
 
@@ -56,23 +95,18 @@ class RoleLeaveButtonHandler {
                 return await interaction.editReply(errorMessage);
             }
 
-            // 移除身份组
             try {
-                for (const roleId of rolesToRemove) {
-                    await member.roles.remove(roleId);
-                }
+                await member.roles.remove(rolesToRemove);
             } catch (error) {
-                console.error('移除身份组失败:', error);
+                console.error('Failed to remove roles:', error);
                 const errorMessage = RoleLeavePanelUI.createErrorMessage('permission_denied');
                 return await interaction.editReply(errorMessage);
             }
 
-            // 记录日志（如果启用）
             if (enableLogging) {
                 await this.logRoleLeave(cacheId, interaction.user, roleNamesToRemove);
             }
 
-            // 创建成功消息
             const successMessage = RoleLeavePanelUI.createLeaveConfirmation(
                 interaction.user,
                 roleNamesToRemove
@@ -80,7 +114,6 @@ class RoleLeaveButtonHandler {
 
             await interaction.editReply(successMessage);
 
-            // 发送系统日志
             sendLog(interaction.client, 'info', {
                 module: 'Role Leave Panel',
                 operation: 'Role Removed',
@@ -95,7 +128,7 @@ class RoleLeaveButtonHandler {
             });
 
         } catch (error) {
-            console.error('处理身份组退出时发生错误:', error);
+            console.error('Error processing role leave:', error);
             const errorMessage = RoleLeavePanelUI.createErrorMessage('general');
             await interaction.editReply(errorMessage).catch(() => {});
 
@@ -106,6 +139,11 @@ class RoleLeaveButtonHandler {
                 error: error.stack
             });
         }
+    }
+
+    async handleCancel(interaction) {
+        const cancelMessage = RoleLeavePanelUI.createErrorMessage('cancelled');
+        await interaction.update(cancelMessage);
     }
 
     async logRoleLeave(cacheId, user, roleNames) {

@@ -23,6 +23,11 @@ class ButtonHandler {
             } else if (interaction.customId.startsWith('role_leave_panel:')) {
                 const cacheId = interaction.customId.split(':')[1];
                 await this.roleLeaveButtonHandler.execute(interaction, cacheId);
+            } else if (interaction.customId.startsWith('role_leave_confirm:')) {
+                const cacheId = interaction.customId.split(':')[1];
+                await this.roleLeaveButtonHandler.handleConfirm(interaction, cacheId);
+            } else if (interaction.customId.startsWith('role_leave_cancel:')) {
+                await this.roleLeaveButtonHandler.handleCancel(interaction);
             } else if (interaction.customId.startsWith('role_join:') || interaction.customId.startsWith('role_leave:')) {
                 await this.roleButtonHandler.execute(interaction);
             } else if (interaction.customId.startsWith('manage_my_roles:')) {

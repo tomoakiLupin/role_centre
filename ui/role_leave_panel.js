@@ -18,12 +18,12 @@ class RoleLeavePanelUI {
                     inline: false
                 },
                 {
-                    name: '📊 记录日志',
+                    name: '记录日志',
                     value: enableLogging ? '✅ 是' : '❌ 否',
                     inline: true
                 },
                 {
-                    name: '⏰ 自动删除',
+                    name: '自动删除',
                     value: autoDeleteMinutes > 0 ? `${autoDeleteMinutes} 分钟` : '🔄 永不',
                     inline: true
                 }
@@ -67,10 +67,48 @@ class RoleLeavePanelUI {
         return { embeds: [embed] };
     }
 
+    static createLeaveConfirmationPrompt(cacheId, rolesToLeave) {
+        const embed = new EmbedBuilder()
+            .setTitle('🤔 确认退出身份组')
+            .setDescription('您确定要退出以下身份组吗？此操作无法撤销')
+            .setColor(0xffaa00)
+            .addFields({
+                name: '即将退出的身份组',
+                value: rolesToLeave.length > 0 ? rolesToLeave.join(', ') : '无',
+                inline: false,
+            })
+            .setTimestamp();
+
+        const confirmButton = new ButtonBuilder()
+            .setCustomId(`role_leave_confirm:${cacheId}`)
+            .setLabel('确认退出')
+            .setStyle(ButtonStyle.Success)
+            .setEmoji('✅');
+
+        const cancelButton = new ButtonBuilder()
+            .setCustomId(`role_leave_cancel:${cacheId}`)
+            .setLabel('取消')
+            .setStyle(ButtonStyle.Secondary)
+            .setEmoji('❌');
+
+        const row = new ActionRowBuilder().addComponents(confirmButton, cancelButton);
+
+        return {
+            embeds: [embed],
+            components: [row],
+            ephemeral: true
+        };
+    }
+
     static createErrorMessage(errorType) {
         let title, description, color;
 
         switch (errorType) {
+            case 'cancelled':
+                title = '🔄 操作已取消';
+                description = '您已取消退出身份组操作';
+                color = 0xaaaaaa;
+                break;
             case 'no_roles':
                 title = '⚠️ 没有可退出的身份组';
                 description = '您没有任何指定的身份组可以退出';
