@@ -49,6 +49,7 @@ function getReactionVoteConfig(channelId) {
 }
 
 async function handleReaction(client, reaction, user, action) {
+    if (user.bot) return;
     console.log(`[handleReaction] Received reaction ${action} from ${user.tag} in thread ${reaction.message.channel.id}`);
     const message = reaction.message;
     if (message.author.bot) return;
@@ -92,10 +93,22 @@ async function handleReaction(client, reaction, user, action) {
         };
     }
 
-    if (action === 'add' && !voteData.voters.includes(user.id)) {
+    const isVoter = voteData.voters.includes(user.id);
+
+    if (action === 'add') {
+        if (isVoter) {
+            console.log(`[handleReaction] User ${user.tag} already voted.`);
+            return;
+        }
         voteData.voters.push(user.id);
     } else if (action === 'remove') {
+        if (!isVoter) {
+            console.log(`[handleReaction] User ${user.tag} was not a voter.`);
+            return;
+        }
         voteData.voters = voteData.voters.filter(voterId => voterId !== user.id);
+    } else {
+        return;
     }
 
     voteData.voteCount = voteData.voters.length;
@@ -173,7 +186,49 @@ async function updateVoteStatusMessage(client, threadId, currentVotes, threshold
     }
 }
 
+async function refreshAllVoteStatusMessages(client) {
+    await ensureVoteDataDir();
+    const files = await fs.readdir(voteDataDir);
+    console.log(`[refreshAll] Found ${files.length} vote data files to process.`);
+
+    for (const file of files) {
+        if (path.extname(file) !== '.json') continue;
+
+        const threadId = path.basename(file, '.json');
+        try {
+            const voteData = await getVoteData(threadId);
+            if (!voteData || !voteData.statusMessageId) continue;
+
+            const thread = await client.channels.fetch(threadId);
+            if (!thread || !thread.isThread()) {
+                console.log(`[refreshAll] Channel ${threadId} is not a valid thread, skipping.`);
+                continue;
+            }
+
+            const configData = getReactionVoteConfig(thread.parentId);
+            if (!configData) {
+                console.log(`[refreshAll] No config found for parent channel ${thread.parentId}, skipping thread ${threadId}.`);
+                continue;
+            }
+
+            await updateVoteStatusMessage(client, threadId, voteData.voteCount, configData.data.threshold);
+            console.log(`[refreshAll] Successfully refreshed vote status for thread ${threadId}.`);
+        } catch (error) {
+            console.error(`[refreshAll] Failed to refresh vote status for thread ${threadId}:`, error);
+            if (error.code === 10003 || error.code === 10008) { // Unknown Channel or Unknown Message
+                try {
+                    await fs.unlink(getVoteFilePath(threadId));
+                    console.log(`[refreshAll] Deleted stale vote data for thread ${threadId} due to error: ${error.message}`);
+                } catch (unlinkError) {
+                    console.error(`[refreshAll] Failed to delete stale vote data for ${threadId}:`, unlinkError);
+                }
+            }
+        }
+    }
+}
+
 module.exports = {
     handleReaction,
-    initializeVoteFile
+    initializeVoteFile,
+    refreshAllVoteStatusMessages
 };

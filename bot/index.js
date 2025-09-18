@@ -11,6 +11,7 @@ const { generateRoleMappingFile } = require('../handler/role_mapping_handler');
 const { convertRoleAssignments } = require('../utils/role_assignment_converter');
 const { setupReactionVoteHandlers } = require('../handler/reaction_vote_system/reaction_vote_handler');
 const { scanActiveThreads } = require('../task/reaction_vote_scanner');
+const { refreshAllVoteStatusMessages } = require('../handler/reaction_vote_system/reaction_vote_manager');
 
 class Bot {
     constructor() {
@@ -95,6 +96,7 @@ class Bot {
             this.setupScheduler();
             this.setupMessageHandler();
             await scanActiveThreads(this.client);
+            await refreshAllVoteStatusMessages(this.client);
         });
 
         // 登录机器人
