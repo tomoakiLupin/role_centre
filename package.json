@@ -11,9 +11,12 @@
   "license": "ISC",
   "packageManager": "pnpm@10.16.0",
   "dependencies": {
+    "@grpc/grpc-js": "^1.14.0",
+    "@grpc/proto-loader": "^0.8.0",
     "config": "^4.1.1",
     "discord.js": "^14.22.1",
     "dotenv": "^17.2.2",
+    "grpc-tools": "^1.13.0",
     "node-cron": "^4.2.1",
     "sqlite": "^5.1.1",
     "sqlite3": "^5.1.7"

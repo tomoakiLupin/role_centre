@@ -192,6 +192,10 @@ async function updateVoteStatusMessage(client, threadId, currentVotes, threshold
 
     try {
         const thread = await client.channels.fetch(threadId);
+        if (thread.archived) {
+            console.log(`[updateVoteStatusMessage] Thread ${threadId} is archived, skipping message update.`);
+            return;
+        }
         const message = await thread.messages.fetch(voteData.statusMessageId);
 
         const newEmbed = new EmbedBuilder(message.embeds[0].toJSON())

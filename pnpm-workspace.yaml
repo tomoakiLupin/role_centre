@@ -1,2 +1,4 @@
 onlyBuiltDependencies:
+  - grpc-tools
+  - protobufjs
   - sqlite3

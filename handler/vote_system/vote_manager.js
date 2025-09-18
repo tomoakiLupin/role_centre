@@ -17,11 +17,11 @@ async function ensureVotesDir() {
 
 // Helper to get the path for a specific vote file
 function getVoteFilePath(voteId) {
-    // Basic validation to prevent path traversal
-    if (/[\\/]/.test(voteId)) {
-        throw new Error('Invalid voteId format');
-    }
-    return path.join(votesDirPath, `${voteId}.json`);
+  // Basic validation to prevent path traversal
+  if (/[\\/]/.test(voteId)) {
+    throw new Error('Invalid voteId format');
+  }
+  return path.join(votesDirPath, `${voteId}.json`);
 }
 
 
@@ -34,7 +34,7 @@ async function getVote(voteId) {
     return JSON.parse(data);
   } catch (error) {
     if (error.code === 'ENOENT') {
-        return null; // Vote file not found, return null
+      return null; // Vote file not found, return null
     }
     throw error; // Re-throw other errors
   }
@@ -49,16 +49,16 @@ async function saveVote(voteId, data) {
 
 // Helper to delete a specific vote file
 async function deleteVote(voteId) {
-    await ensureVotesDir();
-    const filePath = getVoteFilePath(voteId);
-    try {
-        await fs.unlink(filePath);
-    } catch (error) {
-        if (error.code !== 'ENOENT') {
-            console.error(`[voteManager/deleteVote] Error deleting vote file for ${voteId}:`, error);
-            throw error;
-        }
+  await ensureVotesDir();
+  const filePath = getVoteFilePath(voteId);
+  try {
+    await fs.unlink(filePath);
+  } catch (error) {
+    if (error.code !== 'ENOENT') {
+      console.error(`[voteManager/deleteVote] Error deleting vote file for ${voteId}:`, error);
+      throw error;
     }
+  }
 }
 
 // Called from apply_request_handler.js to start a new vote
@@ -116,7 +116,7 @@ async function createVote(client, member, config) {
     mentionContent += `<@&${userRole}>`;
   }
   if (mentionContent) {
-      mentionContent = `${mentionContent.trim()} 新的投票申请`;
+    mentionContent = `${mentionContent.trim()} 新的投票申请`;
   }
 
   const voteMessage = await reviewChannel.send({ content: mentionContent, embeds: [voteEmbed], components: [row] });
@@ -195,11 +195,11 @@ async function checkVoteStatus(client, voteId) {
   }
 
   // Check if conditions are met
-  const isApprovedByAdmin = ratio_allow.admin > 0 && adminApprovals >= ratio_allow.admin;
+  // const isApprovedByAdmin = ratio_allow.admin > 0 && adminApprovals >= ratio_allow.admin;
   const isApprovedByUser = ratio_allow.user > 0 && userApprovals >= ratio_allow.user;
 
   const isRejected = (ratio_reject.admin > 0 && adminRejections >= ratio_reject.admin) ||
-                     (ratio_reject.user > 0 && userRejections >= ratio_reject.user);
+    (ratio_reject.user > 0 && userRejections >= ratio_reject.user);
 
   // If an admin rejects at any time, the vote is immediately rejected.
   if (isRejected) {
@@ -208,9 +208,9 @@ async function checkVoteStatus(client, voteId) {
   }
 
   // If an admin approves, the vote is immediately approved.
-  if (isApprovedByAdmin) {
-    return finalizeVote(client, voteId, 'approved');
-  }
+  // if (isApprovedByAdmin) {
+  //   return finalizeVote(client, voteId, 'approved');
+  // }
 
   // If the vote is approved by users and is currently pending, start the admin review period.
   if (isApprovedByUser && voteData.status === 'pending') {
@@ -236,46 +236,46 @@ async function checkVoteStatus(client, voteId) {
 
 // Called when user vote passes, waiting for admin action
 async function startPendingPeriod(client, voteId) {
-    const voteData = await getVote(voteId);
+  const voteData = await getVote(voteId);
 
-    if (!voteData || voteData.status !== 'pending') {
-        return;
-    }
+  if (!voteData || voteData.status !== 'pending') {
+    return;
+  }
 
-    const now = new Date();
-    const pendingUntil = new Date(now.getTime() + 24 * 60 * 60 * 1000);
+  const now = new Date();
+  const pendingUntil = new Date(now.getTime() + 24 * 60 * 60 * 1000);
 
-    voteData.status = 'pending_admin';
-    voteData.pendingUntil = pendingUntil.toISOString();
-    await saveVote(voteId, voteData);
+  voteData.status = 'pending_admin';
+  voteData.pendingUntil = pendingUntil.toISOString();
+  await saveVote(voteId, voteData);
 
-    const { channelId, messageId, config, requesterId, targetRoleId } = voteData;
-    const guild = await client.guilds.fetch(config.guild_id);
-    const channel = await guild.channels.fetch(channelId);
-    const message = await channel.messages.fetch(messageId);
-    const originalEmbed = message.embeds[0];
+  const { channelId, messageId, config, requesterId, targetRoleId } = voteData;
+  const guild = await client.guilds.fetch(config.guild_id);
+  const channel = await guild.channels.fetch(channelId);
+  const message = await channel.messages.fetch(messageId);
+  const originalEmbed = message.embeds[0];
 
-    const pendingEmbed = new EmbedBuilder(originalEmbed.toJSON())
-        .setColor(0xf1c40f) // Yellow for pending
-        .setFields(
-            originalEmbed.fields[0], // requester
-            originalEmbed.fields[1], // role
-            { name: '当前状态', value: `⏳ 等待管理员确认`, inline: false },
-            { name: '详情', value: `用户投票已达标 如果在 <t:${Math.floor(pendingUntil.getTime() / 1000)}:R> 内没有管理员拒绝，申请将自动通过 `, inline: false },
-            originalEmbed.fields[3], // approve counts
-            originalEmbed.fields[4]  // reject counts
-        );
+  const pendingEmbed = new EmbedBuilder(originalEmbed.toJSON())
+    .setColor(0xf1c40f) // Yellow for pending
+    .setFields(
+      originalEmbed.fields[0], // requester
+      originalEmbed.fields[1], // role
+      { name: '当前状态', value: `⏳ 等待管理员确认`, inline: false },
+      { name: '详情', value: `用户投票已达标 如果在 <t:${Math.floor(pendingUntil.getTime() / 1000)}:R> 内没有管理员拒绝，申请将自动通过 `, inline: false },
+      originalEmbed.fields[3], // approve counts
+      originalEmbed.fields[4]  // reject counts
+    );
 
-    await message.edit({ embeds: [pendingEmbed] });
+  await message.edit({ embeds: [pendingEmbed] });
 
-    console.log(`[voteManager/startPendingPeriod] 投票 ${voteId} 已进入管理员等待期 `);
+  console.log(`[voteManager/startPendingPeriod] 投票 ${voteId} 已进入管理员等待期 `);
 
-    // Send log
-    await sendLog(client, 'info', {
-        module: '投票系统',
-        operation: '进入管理员等待期',
-        message: `用户 <@${requesterId}> 的申请 <@&${targetRoleId}> 用户投票已达标，进入24小时等待期  \n[点击查看投票](https://discord.com/channels/${config.guild_id}/${channelId}/${messageId}) \n投票ID: ${voteId}`
-    });
+  // Send log
+  await sendLog(client, 'info', {
+    module: '投票系统',
+    operation: '进入管理员等待期',
+    message: `用户 <@${requesterId}> 的申请 <@&${targetRoleId}> 用户投票已达标，进入24小时等待期  \n[点击查看投票](https://discord.com/channels/${config.guild_id}/${channelId}/${messageId}) \n投票ID: ${voteId}`
+  });
 }
 
 // Called by checkVoteStatus to finalize the vote
@@ -291,7 +291,7 @@ async function finalizeVote(client, voteId, result, adminRejected = false) {
   if (voteData.pendingUntil) {
     delete voteData.pendingUntil;
   }
-  
+
   const { requesterId, targetRoleId, channelId, messageId, config } = voteData;
   const guild = await client.guilds.fetch(config.guild_id);
   if (!guild) {
@@ -346,11 +346,11 @@ async function finalizeVote(client, voteId, result, adminRejected = false) {
     }
     // Add to rejection list if rejected
     if (result === 'rejected') {
-        if (adminRejected) {
-            await rejectionManager.addPermanentRejection(requesterId, targetRoleId);
-        } else {
-            await rejectionManager.addTemporaryRejection(requesterId, targetRoleId, 720); // 30 days
-        }
+      if (adminRejected) {
+        await rejectionManager.addPermanentRejection(requesterId, targetRoleId);
+      } else {
+        await rejectionManager.addTemporaryRejection(requesterId, targetRoleId, 720); // 30 days
+      }
     }
   }
 
@@ -365,23 +365,23 @@ async function finalizeVote(client, voteId, result, adminRejected = false) {
   });
 
   // Clean up the vote file after it's finalized
-  await deleteVote(voteId);
+  // await deleteVote(voteId);
 }
 
 // Helper to find an active vote by requester ID
 async function findActiveVoteByRequester(requesterId) {
-    await ensureVotesDir();
-    const files = await fs.readdir(votesDirPath);
-    for (const file of files) {
-        if (path.extname(file) === '.json') {
-            const voteId = path.basename(file, '.json');
-            const voteData = await getVote(voteId);
-            if (voteData && voteData.requesterId === requesterId && ['pending', 'pending_admin'].includes(voteData.status)) {
-                return { voteId, voteData };
-            }
-        }
+  await ensureVotesDir();
+  const files = await fs.readdir(votesDirPath);
+  for (const file of files) {
+    if (path.extname(file) === '.json') {
+      const voteId = path.basename(file, '.json');
+      const voteData = await getVote(voteId);
+      if (voteData && voteData.requesterId === requesterId && ['pending', 'pending_admin'].includes(voteData.status)) {
+        return { voteId, voteData };
+      }
     }
-    return null;
+  }
+  return null;
 }
 
 module.exports = {
