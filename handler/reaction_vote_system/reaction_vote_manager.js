@@ -50,7 +50,7 @@ function getReactionVoteConfig(channelId) {
 
 async function handleReaction(client, reaction, user, action) {
     if (user.bot) return;
-    console.log(`[handleReaction] Received reaction ${action} from ${user.tag} in thread ${reaction.message.channel.id}`);
+    // console.log(`[handleReaction] Received reaction ${action} from ${user.tag} in thread ${reaction.message.channel.id}`);
     const message = reaction.message;
     if (message.author.bot) return;
     if (!message.channel.isThread()) return;
@@ -59,11 +59,11 @@ async function handleReaction(client, reaction, user, action) {
     const configData = getReactionVoteConfig(thread.parentId);
 
     if (!configData) {
-        console.log(`[handleReaction] No config found for channel ${thread.parentId}`);
+        // console.log(`[handleReaction] No config found for channel ${thread.parentId}`);
         return;
     }
     if (reaction.emoji.name !== configData.data.emoji_id) {
-        console.log(`[handleReaction] Emoji ${reaction.emoji.name} does not match config emoji ${configData.data.emoji_id}`);
+        // console.log(`[handleReaction] Emoji ${reaction.emoji.name} does not match config emoji ${configData.data.emoji_id}`);
         return;
     }
     console.log(`[handleReaction] Found config for channel ${thread.parentId}`);
@@ -73,16 +73,16 @@ async function handleReaction(client, reaction, user, action) {
 
     // Only check for role on 'add' action
     if (action === 'add' && !member.roles.cache.has(configData.data.vote_allow_roleid)) {
-        console.log(`[handleReaction] User ${user.tag} does not have the required role to vote.`);
+        // console.log(`[handleReaction] User ${user.tag} does not have the required role to vote.`);
         // If the user is not allowed to vote, remove their reaction.
         try {
             await reaction.users.remove(user.id);
         } catch (error) {
-            console.error(`[handleReaction] Failed to remove reaction for user ${user.tag}:`, error);
+            // console.error(`[handleReaction] Failed to remove reaction for user ${user.tag}:`, error);
         }
         return;
     }
-    console.log(`[handleReaction] User ${user.tag} has permission for action: ${action}`);
+    // console.log(`[handleReaction] User ${user.tag} has permission for action: ${action}`);
 
     let voteData = await getVoteData(thread.id);
     if (!voteData) {
@@ -125,6 +125,30 @@ async function handleReaction(client, reaction, user, action) {
             operation: '帖子锁定',
             message: `帖子 ${thread.name} (${thread.id}) 因投票达到阈值 ${configData.data.threshold} 已被锁定。`
         });
+
+        // 授予角色给帖子作者
+        try {
+            const ownerId = thread.ownerId;
+            if (ownerId) {
+                const owner = await guild.members.fetch(ownerId);
+                const roleId = configData.give_role;
+                if (owner && roleId) {
+                    await owner.roles.add(roleId);
+                    await sendLog(client, 'info', {
+                        module: '帖子反应投票系统',
+                        operation: '授予角色',
+                        message: `已将角色 ${roleId} 授予用户 ${owner.user.tag} (${ownerId})。`
+                    });
+                }
+            }
+        } catch (error) {
+            console.error(`[handleReaction] 授予角色时出错:`, error);
+            await sendLog(client, 'error', {
+                module: '帖子反应投票系统',
+                operation: '授予角色失败',
+                message: `为用户 ${thread.ownerId} 授予角色 ${configData.give_role} 时失败: ${error.message}`
+            });
+        }
     }
 }
 
