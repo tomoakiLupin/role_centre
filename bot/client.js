@@ -1,4 +1,4 @@
-const { Client, GatewayIntentBits } = require('discord.js');
+const { Client, GatewayIntentBits, Partials } = require('discord.js');
 const { sendLog } = require('../utils/logger');
 
 class BotClient {
@@ -7,7 +7,15 @@ class BotClient {
             intents: [
                 GatewayIntentBits.Guilds,
                 GatewayIntentBits.GuildMessages,
-                GatewayIntentBits.GuildMembers
+                GatewayIntentBits.GuildMembers,
+                GatewayIntentBits.GuildMessageReactions
+            ],
+            partials: [
+                Partials.Message,
+                Partials.Channel,
+                Partials.Reaction,
+                Partials.User,
+                Partials.GuildMember
             ]
         });
 

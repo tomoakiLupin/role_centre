@@ -14,7 +14,8 @@ class ConfigLoader {
       'bot_config.json',
       'atuo_applyrole_config.json',
       'log_config.json',
-      'blacklist.json'
+      'blacklist.json',
+      'post_reaction_autoapply.json'
     ];
 
     // 加载所有配置文件

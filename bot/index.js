@@ -9,6 +9,8 @@ const { startScheduledTasks } = require('./services/scheduler_service');
 const MessageHandler = require('../handler/message_handler');
 const { generateRoleMappingFile } = require('../handler/role_mapping_handler');
 const { convertRoleAssignments } = require('../utils/role_assignment_converter');
+const { setupReactionVoteHandlers } = require('../handler/reaction_vote_system/reaction_vote_handler');
+const { scanActiveThreads } = require('../task/reaction_vote_scanner');
 
 class Bot {
     constructor() {
@@ -23,6 +25,7 @@ class Bot {
         this.messageHandler = null;
 
         this.setupInteractionHandlers();
+        setupReactionVoteHandlers(this.client);
     }
 
     setupInteractionHandlers() {
@@ -91,6 +94,7 @@ class Bot {
             this.setupScanner();
             this.setupScheduler();
             this.setupMessageHandler();
+            await scanActiveThreads(this.client);
         });
 
         // 登录机器人

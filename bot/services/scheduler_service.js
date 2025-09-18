@@ -1,6 +1,7 @@
 const cron = require('node-cron');
 const { convertRoleAssignments } = require('../../utils/role_assignment_converter');
 const { scanAndProcess } = require('../../task/role_fade_task');
+const { scanActiveThreads } = require('../../task/reaction_vote_scanner');
  
  /**
   * Initializes and starts the scheduled tasks for the bot.
@@ -31,7 +32,16 @@ const { scanAndProcess } = require('../../task/role_fade_task');
        timezone: "Asia/Shanghai"
    });
 
-    console.log('Scheduler service started. Role assignment conversion is scheduled for 4:00 AM daily. Role fade scan is scheduled for every 3 hours.');
+    // Schedule the reaction vote scan to run at 4:00 AM every day.
+    cron.schedule('0 4 * * *', () => {
+        console.log('Running scheduled task: scanActiveThreads for reaction votes');
+        scanActiveThreads(client);
+    }, {
+        scheduled: true,
+        timezone: "Asia/Shanghai"
+    });
+
+    console.log('Scheduler service started. Role assignment conversion is scheduled for 4:00 AM daily. Role fade scan is scheduled for every 3 hours. Reaction vote scan is scheduled for 4:00 AM daily.');
 }
 
 module.exports = {
