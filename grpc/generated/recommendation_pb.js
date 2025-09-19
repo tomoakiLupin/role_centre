@@ -21,6 +21,7 @@ var global = (function() {
   return Function('return this')();
 }.call(null));
 
+goog.exportSymbol('proto.recommendation.AuditStatus', null, global);
 goog.exportSymbol('proto.recommendation.GetRecommendationRequest', null, global);
 goog.exportSymbol('proto.recommendation.GetRecommendationsByAuthorRequest', null, global);
 goog.exportSymbol('proto.recommendation.GetRecommendationsByAuthorResponse', null, global);
@@ -159,7 +160,8 @@ proto.recommendation.RecommendationSlip.toObject = function(includeInstance, msg
     originalPostTimestamp: jspb.Message.getFieldWithDefault(msg, 16, ""),
     finalAmwayMessageId: jspb.Message.getFieldWithDefault(msg, 17, ""),
     isDeleted: jspb.Message.getBooleanFieldWithDefault(msg, 18, false),
-    isAnonymous: jspb.Message.getBooleanFieldWithDefault(msg, 19, false)
+    isAnonymous: jspb.Message.getBooleanFieldWithDefault(msg, 19, false),
+    auditStatus: jspb.Message.getFieldWithDefault(msg, 20, 0)
   };
 
   if (includeInstance) {
@@ -271,6 +273,10 @@ proto.recommendation.RecommendationSlip.deserializeBinaryFromReader = function(m
     case 19:
       var value = /** @type {boolean} */ (reader.readBool());
       msg.setIsAnonymous(value);
+      break;
+    case 20:
+      var value = /** @type {!proto.recommendation.AuditStatus} */ (reader.readEnum());
+      msg.setAuditStatus(value);
       break;
     default:
       reader.skipField();
@@ -431,6 +437,13 @@ proto.recommendation.RecommendationSlip.serializeBinaryToWriter = function(messa
   if (f) {
     writer.writeBool(
       19,
+      f
+    );
+  }
+  f = message.getAuditStatus();
+  if (f !== 0.0) {
+    writer.writeEnum(
+      20,
       f
     );
   }
@@ -776,6 +789,24 @@ proto.recommendation.RecommendationSlip.prototype.getIsAnonymous = function() {
  */
 proto.recommendation.RecommendationSlip.prototype.setIsAnonymous = function(value) {
   return jspb.Message.setProto3BooleanField(this, 19, value);
+};
+
+
+/**
+ * optional AuditStatus audit_status = 20;
+ * @return {!proto.recommendation.AuditStatus}
+ */
+proto.recommendation.RecommendationSlip.prototype.getAuditStatus = function() {
+  return /** @type {!proto.recommendation.AuditStatus} */ (jspb.Message.getFieldWithDefault(this, 20, 0));
+};
+
+
+/**
+ * @param {!proto.recommendation.AuditStatus} value
+ * @return {!proto.recommendation.RecommendationSlip} returns this
+ */
+proto.recommendation.RecommendationSlip.prototype.setAuditStatus = function(value) {
+  return jspb.Message.setProto3EnumField(this, 20, value);
 };
 
 
@@ -1228,5 +1259,16 @@ proto.recommendation.GetRecommendationsByAuthorResponse.prototype.clearRecommend
   return this.setRecommendationsList([]);
 };
 
+
+/**
+ * @enum {number}
+ */
+proto.recommendation.AuditStatus = {
+  AUDIT_STATUS_UNSPECIFIED: 0,
+  AUDIT_STATUS_PENDING: 1,
+  AUDIT_STATUS_APPROVED: 2,
+  AUDIT_STATUS_REJECTED: 3,
+  AUDIT_STATUS_UNDER_REVIEW: 4
+};
 
 goog.object.extend(exports, proto.recommendation);

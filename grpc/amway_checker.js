@@ -79,7 +79,7 @@ async function checkAmwayEligibility(userId, configId, guildId) {
       return false;
     }
 
-    const validRecommendations = response.recommendationsList.filter(rec => !rec.isDeleted);
+    const validRecommendations = response.recommendationsList.filter(rec => !rec.isDeleted && rec.auditStatus === 2);
     const validCount = validRecommendations.length;
 
     console.log(`[amway_checker] 用户 ${userId} 有效安利条目数: ${validCount}, 阈值: ${thresholdNum}`);

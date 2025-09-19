@@ -1,8 +1,5 @@
 // GENERATED CODE -- DO NOT EDIT!
 
-// Original file comments:
-// amway 系统的安利 proto 定义文件
-// 与目前的系统无关
 'use strict';
 var grpc = require('@grpc/grpc-js');
 var recommendation_pb = require('./recommendation_pb.js');

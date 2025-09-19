@@ -1,8 +1,8 @@
-// amway 系统的安利 proto 定义文件
-// 与目前的系统无关
 syntax = "proto3";
 
 package recommendation;
+
+option go_package = "grpc/gen/recommendation";
 
 // Service Definition
 service RecommendationService {
@@ -12,6 +12,15 @@ service RecommendationService {
   // 查询一个用户ID全部的小纸条
   rpc GetRecommendationsByAuthor(GetRecommendationsByAuthorRequest)
       returns (GetRecommendationsByAuthorResponse);
+}
+
+// Enum Definitions
+enum AuditStatus {
+  AUDIT_STATUS_UNSPECIFIED = 0;  // 未指定状态
+  AUDIT_STATUS_PENDING = 1;      // 待审核
+  AUDIT_STATUS_APPROVED = 2;     // 已通过
+  AUDIT_STATUS_REJECTED = 3;     // 已拒绝
+  AUDIT_STATUS_UNDER_REVIEW = 4; // 审核中
 }
 
 // Message Definitions
@@ -35,6 +44,7 @@ message RecommendationSlip {
   string final_amway_message_id = 17;  // 最终安利消息 ID
   bool is_deleted = 18;             // 是否已删除
   bool is_anonymous = 19;           // 是否匿名提交
+  AuditStatus audit_status = 20;    // 审核状态
 }
 
 message GetRecommendationRequest {
