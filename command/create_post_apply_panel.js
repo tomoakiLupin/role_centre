@@ -17,5 +17,13 @@ module.exports = {
       option.setName('channel')
         .setDescription('帖子所在的论坛频道 (可选, 默认为所有频道)')
         .addChannelTypes(ChannelType.GuildForum)
+        .setRequired(false))
+    .addStringOption(option =>
+      option.setName('grpc_config_id')
+        .setDescription('gRPC 配置 ID (可选, 启用远程数据库查询)')
+        .setRequired(false))
+    .addStringOption(option =>
+      option.setName('grpc_button_name')
+        .setDescription('gRPC 查询按钮名称 (可选, 默认为"查询远程数据库（自动）")')
         .setRequired(false)),
 };
