@@ -109,9 +109,6 @@ async function createVote(client, member, config) {
   const adminRole = allow_vote_role?.admin;
   const userRole = allow_vote_role?.user;
   let mentionContent = '';
-  if (adminRole) {
-    mentionContent += `<@&${adminRole}> `;
-  }
   if (userRole) {
     mentionContent += `<@&${userRole}>`;
   }
@@ -195,7 +192,7 @@ async function checkVoteStatus(client, voteId) {
   }
 
   // Check if conditions are met
-  // const isApprovedByAdmin = ratio_allow.admin > 0 && adminApprovals >= ratio_allow.admin;
+  const isApprovedByAdmin = ratio_allow.admin > 0 && adminApprovals >= ratio_allow.admin;
   const isApprovedByUser = ratio_allow.user > 0 && userApprovals >= ratio_allow.user;
 
   const isRejected = (ratio_reject.admin > 0 && adminRejections >= ratio_reject.admin) ||
@@ -203,35 +200,44 @@ async function checkVoteStatus(client, voteId) {
 
   // If an admin rejects at any time, the vote is immediately rejected.
   if (isRejected) {
+    console.log(`[voteManager/checkVoteStatus] 投票 ${voteId} 被拒绝`);
     const adminRejected = adminRejections >= ratio_reject.admin && ratio_reject.admin > 0;
     return finalizeVote(client, voteId, 'rejected', adminRejected);
   }
 
-  // If an admin approves, the vote is immediately approved.
-  // if (isApprovedByAdmin) {
-  //   return finalizeVote(client, voteId, 'approved');
-  // }
+  // If an admin approves during pending_admin period, immediately approve the vote
+  if (isApprovedByAdmin && voteData.status === 'pending_admin') {
+    console.log(`[voteManager/checkVoteStatus] 投票 ${voteId} 管理员确认，立即通过`);
+    return finalizeVote(client, voteId, 'approved');
+  }
 
   // If the vote is approved by users and is currently pending, start the admin review period.
   if (isApprovedByUser && voteData.status === 'pending') {
+    console.log(`[voteManager/checkVoteStatus] 投票 ${voteId} 用户投票达标，进入管理员等待期`);
     return startPendingPeriod(client, voteId);
   }
+
+  console.log(`[voteManager/checkVoteStatus] 投票 ${voteId} 未达到任何条件，继续等待`);
 
   // If the vote is not over, update the message
   const channel = await guild.channels.fetch(channelId);
   const message = await channel.messages.fetch(messageId);
   const originalEmbed = message.embeds[0];
 
-  const updatedEmbed = new EmbedBuilder(originalEmbed.toJSON())
-    .setFields(
-      originalEmbed.fields[0],
-      originalEmbed.fields[1],
-      { name: '当前状态', value: '投票中...', inline: false },
-      { name: '👍 同意', value: `管理员: ${adminApprovals}/${ratio_allow.admin}\n用户: ${userApprovals}/${ratio_allow.user}`, inline: true },
-      { name: '👎 拒绝', value: `管理员: ${adminRejections}/${ratio_reject.admin}\n用户: ${userRejections}/${ratio_reject.user}`, inline: true }
-    );
+  // Only update vote counts if still in pending status
+  if (voteData.status === 'pending') {
+    const updatedEmbed = new EmbedBuilder(originalEmbed.toJSON())
+      .setFields(
+        originalEmbed.fields[0],
+        originalEmbed.fields[1],
+        { name: '当前状态', value: '投票中...', inline: false },
+        { name: '👍 同意', value: `管理员: ${adminApprovals}/${ratio_allow.admin}\n用户: ${userApprovals}/${ratio_allow.user}`, inline: true },
+        { name: '👎 拒绝', value: `管理员: ${adminRejections}/${ratio_reject.admin}\n用户: ${userRejections}/${ratio_reject.user}`, inline: true }
+      );
 
-  await message.edit({ embeds: [updatedEmbed] });
+    await message.edit({ embeds: [updatedEmbed] });
+  }
+  // If in pending_admin status, don't update the embed as it should show the pending admin message
 }
 
 // Called when user vote passes, waiting for admin action
@@ -261,12 +267,25 @@ async function startPendingPeriod(client, voteId) {
       originalEmbed.fields[0], // requester
       originalEmbed.fields[1], // role
       { name: '当前状态', value: `⏳ 等待管理员确认`, inline: false },
-      { name: '详情', value: `用户投票已达标 如果在 <t:${Math.floor(pendingUntil.getTime() / 1000)}:R> 内没有管理员拒绝，申请将自动通过 `, inline: false },
-      originalEmbed.fields[3], // approve counts
-      originalEmbed.fields[4]  // reject counts
+      { name: '详情', value: `用户投票已达标，如果在 <t:${Math.floor(pendingUntil.getTime() / 1000)}:R> 内没有管理员拒绝，申请将自动通过`, inline: false }
     );
 
-  await message.edit({ embeds: [pendingEmbed] });
+  // Create new admin confirmation buttons
+  const adminRow = new ActionRowBuilder()
+    .addComponents(
+      new ButtonBuilder()
+        .setCustomId(`vote:approve:${voteId}`)
+        .setLabel('管理确认')
+        .setStyle(ButtonStyle.Success)
+        .setEmoji('✅'),
+      new ButtonBuilder()
+        .setCustomId(`vote:reject:${voteId}`)
+        .setLabel('不通过')
+        .setStyle(ButtonStyle.Danger)
+        .setEmoji('❌')
+    );
+
+  await message.edit({ embeds: [pendingEmbed], components: [adminRow] });
 
   console.log(`[voteManager/startPendingPeriod] 投票 ${voteId} 已进入管理员等待期 `);
 

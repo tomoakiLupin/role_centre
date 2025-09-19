@@ -102,7 +102,7 @@ function startGrpcClient() {
         timestamp: Date.now(),
       };
       if (call.writable) {
-        console.log(`[grpc_client] Sending heartbeat with connection ID: ${connectionId}`);
+        // console.log(`[grpc_client] Sending heartbeat with connection ID: ${connectionId}`);
         call.write({ heartbeat: heartbeat });
       }
     }

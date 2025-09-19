@@ -44,7 +44,6 @@ const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
  * @returns {Promise<boolean>} - 如果用户在黑名单中则返回true，否则返回false
  */
 async function isBlacklisted(userId, customId) {
-    await sleep(2000); // 2秒固定延迟
     const blacklist = config.get('blacklist.blacklist');
     if (!blacklist || !userId || !customId) {
         return false;
@@ -56,6 +55,7 @@ async function isBlacklisted(userId, customId) {
             if (customId.startsWith(prefix)) {
                 const userList = blacklist.btn[prefix];
                 if (Array.isArray(userList) && userList.includes(userId)) {
+                    await sleep(2000); // 只对黑名单用户延迟2秒
                     return true;
                 }
             }
