@@ -50,22 +50,28 @@ class GrpcApplyRequestHandler {
             }
 
             // 调用 gRPC 检查函数
-            const isEligible = await checkAmwayEligibility(
+            const eligibilityResult = await checkAmwayEligibility(
                 interaction.user.id,
                 configId,
                 interaction.guildId
             );
 
-            if (!isEligible) {
+            if (!eligibilityResult.isEligible) {
                 const failureEmbed = createFailureEmbed(
-                    `您不满足申请条件。请确保您的安利条目数量达到 ${config.data.threshold} 个要求。`
+                    `您不满足申请条件。`,
+                    {
+                        count: eligibilityResult.count,
+                        threshold: config.data.threshold,
+                    }
                 );
                 return await interaction.editReply({ embeds: [failureEmbed] });
             }
 
             // 验证通过，授予身份组
             await interaction.member.roles.add(role);
-            const successEmbed = createSuccessEmbed(role);
+            const successEmbed = createSuccessEmbed(role, {
+                count: eligibilityResult.count,
+            });
             await interaction.editReply({ embeds: [successEmbed] });
 
             sendLog(interaction.client, 'info', {

@@ -310,7 +310,7 @@ async function finalizeVote(client, voteId, result, adminRejected = false) {
   if (voteData.pendingUntil) {
     delete voteData.pendingUntil;
   }
-
+  await saveVote(voteId, voteData);
   const { requesterId, targetRoleId, channelId, messageId, config } = voteData;
   const guild = await client.guilds.fetch(config.guild_id);
   if (!guild) {

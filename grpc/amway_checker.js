@@ -15,16 +15,22 @@ const configPath = path.join(__dirname, '../config/grpc_roleapply_config.json');
  * @param {string} userId - Discord 用户 ID
  * @param {string} configId - 配置文件中的配置项 ID (如 "0")
  * @param {string} guildId - Discord 服务器 ID
- * @returns {Promise<boolean>} 是否满足安利条目阈值要求
+ * @returns {Promise<{isEligible: boolean, count: number, uuids: string[]}>} 一个包含资格、有效条目数和 UUID 列表的对象
  *
  * @example
  * // 检查用户是否满足安利条目要求
- * const isEligible = await checkAmwayEligibility(
+ * const result = await checkAmwayEligibility(
  *   '1290468316401504280',  // 用户ID
  *   '0',                    // 配置ID
  *   '1291925535324110879'   // 服务器ID
  * );
- * console.log(isEligible ? '✅ 满足条件' : '❌ 不满足条件');
+ * if (result.isEligible) {
+ *   console.log('✅ 满足条件');
+ *   console.log(`有效条目数: ${result.count}`);
+ *   console.log(`条目 UUID: ${result.uuids.join(', ')}`);
+ * } else {
+ *   console.log('❌ 不满足条件');
+ * }
  *
  * @throws {Error} 当配置文件不存在或格式错误时抛出错误
  *
@@ -50,12 +56,12 @@ async function checkAmwayEligibility(userId, configId, guildId) {
 
     if (configItem.guild_id !== guildId) {
       console.log(`[amway_checker] 服务器 ID 不匹配: 配置=${configItem.guild_id}, 传入=${guildId}`);
-      return false;
+      return { isEligible: false, count: 0, uuids: [] };
     }
 
     if (configItem.type !== 'amway') {
       console.log(`[amway_checker] 配置类型不是 amway: ${configItem.type}`);
-      return false;
+      return { isEligible: false, count: 0, uuids: [] };
     }
 
     const { grpc_path, threshold } = configItem.data;
@@ -76,7 +82,7 @@ async function checkAmwayEligibility(userId, configId, guildId) {
       console.log(`[amway_checker] 查询返回空结果或缺少 recommendationsList 字段`);
       console.log(`[amway_checker] response 存在: ${!!response}`);
       console.log(`[amway_checker] response.recommendationsList 存在: ${!!(response && response.recommendationsList)}`);
-      return false;
+      return { isEligible: false, count: 0, uuids: [] };
     }
 
     const validRecommendations = response.recommendationsList.filter(rec => !rec.isDeleted && rec.auditStatus === 2);
@@ -84,11 +90,18 @@ async function checkAmwayEligibility(userId, configId, guildId) {
 
     console.log(`[amway_checker] 用户 ${userId} 有效安利条目数: ${validCount}, 阈值: ${thresholdNum}`);
 
-    return validCount >= thresholdNum;
+    const isEligible = validCount >= thresholdNum;
+    const uuids = validRecommendations.map(rec => rec.uuid);
+
+    return {
+      isEligible,
+      count: validCount,
+      uuids,
+    };
 
   } catch (error) {
     console.error(`[amway_checker] 检查安利资格时出错:`, error);
-    return false;
+    return { isEligible: false, count: 0, uuids: [] };
   }
 }
 

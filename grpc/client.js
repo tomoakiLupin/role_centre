@@ -44,6 +44,9 @@ const GRPC_SERVER_NAME = process.env.GRPC_SERVER_NAME;
 
 let heartbeatInterval;
 let connectionId = null;
+let registryClient = null;
+let call = null;
+const pendingRequests = new Map();
 
 function startGrpcClient() {
   if (process.env.GRPC_ENABLED !== 'true') {
@@ -51,16 +54,32 @@ function startGrpcClient() {
     return;
   }
 
-  const registryClient = new registry_proto.RegistryService(
+  registryClient = new registry_proto.RegistryService(
     GRPC_SERVER_ADDRESS,
     grpc.credentials.createInsecure()
   );
 
-  const call = registryClient.EstablishConnection();
+  call = registryClient.EstablishConnection();
 
   call.on('data', (message) => {
     if (message.request) {
       handleRequest(message.request, call);
+    } else if (message.response) {
+      const { request_id, payload, status_code } = message.response;
+      if (pendingRequests.has(request_id)) {
+        const { resolve, reject } = pendingRequests.get(request_id);
+        if (status_code === 200) {
+          try {
+            const decodedResponse = recommendation_pb.GetRecommendationsByAuthorResponse.deserializeBinary(payload);
+            resolve(decodedResponse.toObject());
+          } catch (error) {
+            reject(new Error(`Failed to decode response: ${error.message}`));
+          }
+        } else {
+          reject(new Error(`gRPC query failed with status code: ${status_code}`));
+        }
+        pendingRequests.delete(request_id);
+      }
     } else if (message.status && message.status.status === 'CONNECTED') {
       connectionId = message.status.connection_id;
       console.log(`[grpc_client] Connection established with ID: ${connectionId}`);
@@ -149,79 +168,39 @@ function capitalizeFirstLetter(string) {
 
 async function queryThroughGateway(grpcPath, requestData) {
   return new Promise((resolve, reject) => {
-    if (!connectionId) {
-      reject(new Error('No active gRPC connection'));
-      return;
+    if (!call || !call.writable) {
+      return reject(new Error('No active gRPC connection or connection not writable.'));
     }
 
-    const registryClient = new registry_proto.RegistryService(
-      GRPC_SERVER_ADDRESS,
-      grpc.credentials.createInsecure()
-    );
+    const requestId = `${Date.now()}-${Math.random()}`;
+    let requestPayload;
 
-    const call = registryClient.EstablishConnection();
-    let requestSent = false;
+    if (grpcPath.includes('RecommendationService/GetRecommendationsByAuthor')) {
+      const requestMessage = new recommendation_pb.GetRecommendationsByAuthorRequest();
+      requestMessage.setAuthorId(requestData.author_id);
+      requestMessage.setGuildId(requestData.guild_id);
+      requestPayload = requestMessage.serializeBinary();
+    } else {
+      return reject(new Error(`Unsupported service path: ${grpcPath}`));
+    }
 
-    call.on('data', (message) => {
-      if (message.response) {
-        try {
-          // 根据 grpcPath 判断服务类型并选择正确的解码方式
-          if (grpcPath.includes('RecommendationService/GetRecommendationsByAuthor')) {
-            const decodedResponse = recommendation_pb.GetRecommendationsByAuthorResponse.deserializeBinary(message.response.payload);
-            resolve(decodedResponse.toObject());
-          } else {
-            // 对于其他服务，返回原始响应或添加更多服务支持
-            resolve({
-              raw_payload: message.response.payload,
-              status_code: message.response.status_code
-            });
-          }
-        } catch (error) {
-          reject(new Error(`Failed to decode response: ${error.message}`));
-        }
-        call.end();
-      } else if (message.status && message.status.status === 'CONNECTED' && !requestSent) {
-        let requestPayload;
-
-        // 根据 grpcPath 选择正确的请求类型
-        if (grpcPath.includes('RecommendationService/GetRecommendationsByAuthor')) {
-          const requestMessage = new recommendation_pb.GetRecommendationsByAuthorRequest();
-          requestMessage.setAuthorId(requestData.author_id);
-          requestMessage.setGuildId(requestData.guild_id);
-          requestPayload = requestMessage.serializeBinary();
-        } else {
-          // 对于其他服务，可以扩展支持
-          reject(new Error(`Unsupported service path: ${grpcPath}`));
-          return;
-        }
-
-        const forwardRequest = {
-          method_path: grpcPath,
-          payload: requestPayload,
-          request_id: Date.now().toString(),
-        };
-
-        call.write({ request: forwardRequest });
-        requestSent = true;
-      }
-    });
-
-    call.on('error', (err) => {
-      reject(new Error(`gRPC call error: ${err.message}`));
-    });
-
-    call.on('end', () => {
-      if (!requestSent) {
-        reject(new Error('Connection ended before request could be sent'));
-      }
-    });
-
-    const register = {
-      api_key: GRPC_TOKEN,
-      services: ['role_center.RoleService'],
+    const forwardRequest = {
+      method_path: grpcPath,
+      payload: requestPayload,
+      request_id: requestId,
     };
 
-    call.write({ register: register });
+    pendingRequests.set(requestId, { resolve, reject });
+
+    call.write({ request: forwardRequest });
+
+    // 设置超时
+    setTimeout(() => {
+      if (pendingRequests.has(requestId)) {
+        pendingRequests.delete(requestId);
+        reject(new Error(`Request timed out for ${grpcPath}`));
+      }
+    }, 10000); // 10秒超时
   });
 }
 
