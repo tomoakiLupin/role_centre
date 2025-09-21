@@ -17,7 +17,7 @@ class ButtonHandler {
         const { isBlacklisted, getRandomReason } = require('../../utils/blacklist');
         if (await isBlacklisted(interaction.user.id, interaction.customId)) {
             const reason = getRandomReason();
-            await interaction.reply({ content: reason, ephemeral: true });
+            await interaction.reply({ content: reason, flags: [64] });
             return;
         }
 
@@ -42,11 +42,14 @@ class ButtonHandler {
                 await this.roleButtonHandler.execute(interaction);
             } else if (interaction.customId.startsWith('manage_my_roles:')) {
                 await this.manageMyRolesButtonHandler.execute(interaction);
+            } else if (interaction.customId === 'confirm_assign' || interaction.customId === 'cancel_assign') {
+                // These are handled by a collector in batch_role_assign_handler.js, so we do nothing here.
+                return;
             } else {
                 // For button interactions that don't match, we can provide a generic response.
                 // For select menus, it's often better to just let them be, as they might be part of a multi-step process handled elsewhere.
                 if (interaction.isButton()) {
-                    await interaction.reply({ content: '未知的按钮操作', ephemeral: true });
+                    await interaction.reply({ content: '未知的按钮操作', flags: [64] });
                 }
             }
         } catch (error) {

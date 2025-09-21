@@ -11,7 +11,7 @@ class BatchRoleAssignHandler {
     }
 
     async execute(interaction) {
-        await interaction.deferReply({ ephemeral: true });
+        await interaction.deferReply({ flags: [64] });
 
         try {
             // 获取参数
@@ -99,8 +99,7 @@ class BatchRoleAssignHandler {
 
             const confirmationMessage = await interaction.editReply({
                 embeds: [confirmationEmbed],
-                components: [row],
-                ephemeral: true
+                components: [row]
             });
 
             const collector = confirmationMessage.createMessageComponentCollector({
@@ -110,7 +109,7 @@ class BatchRoleAssignHandler {
 
             collector.on('collect', async i => {
                 if (i.user.id !== interaction.user.id) {
-                    return i.reply({ content: '❌ 你不能操作这个按钮', ephemeral: true });
+                    return i.reply({ content: '❌ 你不能操作这个按钮', flags: [64] });
                 }
 
                 await i.deferUpdate();
