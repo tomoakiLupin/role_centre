@@ -4,6 +4,28 @@
 var grpc = require('@grpc/grpc-js');
 var role_pb = require('./role_pb.js');
 
+function serialize_role_center_AssignRoleRequest(arg) {
+  if (!(arg instanceof role_pb.AssignRoleRequest)) {
+    throw new Error('Expected argument of type role_center.AssignRoleRequest');
+  }
+  return Buffer.from(arg.serializeBinary());
+}
+
+function deserialize_role_center_AssignRoleRequest(buffer_arg) {
+  return role_pb.AssignRoleRequest.deserializeBinary(new Uint8Array(buffer_arg));
+}
+
+function serialize_role_center_AssignRoleResponse(arg) {
+  if (!(arg instanceof role_pb.AssignRoleResponse)) {
+    throw new Error('Expected argument of type role_center.AssignRoleResponse');
+  }
+  return Buffer.from(arg.serializeBinary());
+}
+
+function deserialize_role_center_AssignRoleResponse(buffer_arg) {
+  return role_pb.AssignRoleResponse.deserializeBinary(new Uint8Array(buffer_arg));
+}
+
 function serialize_role_center_GetRoleAssignmentsRequest(arg) {
   if (!(arg instanceof role_pb.GetRoleAssignmentsRequest)) {
     throw new Error('Expected argument of type role_center.GetRoleAssignmentsRequest');
@@ -74,6 +96,18 @@ getRoleAssignments: {
     requestDeserialize: deserialize_role_center_GetRoleAssignmentsRequest,
     responseSerialize: serialize_role_center_GetRoleAssignmentsResponse,
     responseDeserialize: deserialize_role_center_GetRoleAssignmentsResponse,
+  },
+  // 为用户分配身份组
+assignRole: {
+    path: '/role_center.RoleService/AssignRole',
+    requestStream: false,
+    responseStream: false,
+    requestType: role_pb.AssignRoleRequest,
+    responseType: role_pb.AssignRoleResponse,
+    requestSerialize: serialize_role_center_AssignRoleRequest,
+    requestDeserialize: deserialize_role_center_AssignRoleRequest,
+    responseSerialize: serialize_role_center_AssignRoleResponse,
+    responseDeserialize: deserialize_role_center_AssignRoleResponse,
   },
 };
 

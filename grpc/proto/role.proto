@@ -9,6 +9,9 @@ service RoleService {
 
   // 查询一个身份组下的所有用户
   rpc GetRoleAssignments(GetRoleAssignmentsRequest) returns (GetRoleAssignmentsResponse);
+
+  // 为用户分配身份组
+  rpc AssignRole(AssignRoleRequest) returns (AssignRoleResponse);
 }
 
 // 代表一个身份组
@@ -43,4 +46,18 @@ message GetRoleAssignmentsRequest {
 // GetRoleAssignments 的响应消息
 message GetRoleAssignmentsResponse {
   repeated AssignedUser users = 1; // 该身份组下的用户列表
+}
+
+// AssignRole 的请求消息
+message AssignRoleRequest {
+  string user_id = 1;       // 要分配身份组的用户的 ID
+  string guild_id = 2;      // 服务器的 ID
+  string role_id = 3;       // 要分配的身份组的 ID
+  string operator_id = 4;   // 可选的操作 ID
+}
+
+// AssignRole 的响应消息
+message AssignRoleResponse {
+  bool success = 1;         // 操作是否成功
+  string message = 2;       // 附加信息
 }
