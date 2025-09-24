@@ -35,6 +35,9 @@ async function assignRoleToUser({ userId, guildId, roleId }) {
             return { success: false, message: `User with ID ${userId} not found in guild ${guild.name}.` };
         }
 
+        // 实际为用户添加身份组
+        await member.roles.add(role);
+
         // 更新 user_roles_by_guild.json
         await userRolesEditor.atomic_write(async (data) => {
             const currentData = data || {};

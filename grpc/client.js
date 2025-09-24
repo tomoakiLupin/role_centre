@@ -133,23 +133,49 @@ function handleRequest(request, call) {
   const [_, serviceName, methodName] = method_path.split('/');
 
   if (serviceName === 'role_center.RoleService') {
-    const method = roleService[methodName];
+    const camelCaseMethodName = methodName.charAt(0).toLowerCase() + methodName.slice(1);
+    const method = roleService[camelCaseMethodName];
     if (method) {
       // 动态创建请求消息类型
-      const RequestType = role_proto[capitalizeFirstLetter(methodName) + 'Request'];
-      const message = RequestType.decode(payload);
+      const RequestType = role_proto[methodName + 'Request'];
+      if (!RequestType) {
+        console.error(`[grpc_client] Request type not found: ${methodName}Request`);
+        const errorResponse = {
+          request_id: request_id,
+          status_code: grpc.status.UNIMPLEMENTED,
+          error_message: `Request type ${methodName}Request not found`,
+        };
+        call.write({ response: errorResponse });
+        return;
+      }
 
-      method({ request: message.toObject() }, (err, response) => {
+      const message = RequestType.deserialize(payload);
+
+      method({ request: message }, (err, response) => {
         if (err) {
           console.error(`[grpc_client] Error handling ${method_path}:`, err);
-          // 可以选择向网关返回错误
+          const errorResponse = {
+            request_id: request_id,
+            status_code: grpc.status.INTERNAL,
+            error_message: err.message,
+          };
+          call.write({ response: errorResponse });
           return;
         }
 
         // 动态创建响应消息类型
-        const ResponseType = role_proto[capitalizeFirstLetter(methodName) + 'Response'];
-        const responseMessage = ResponseType.create(response);
-        const responsePayload = ResponseType.encode(responseMessage).finish();
+        const ResponseType = role_proto[methodName + 'Response'];
+        if (!ResponseType) {
+          console.error(`[grpc_client] Response type not found: ${methodName}Response`);
+          const errorResponse = {
+            request_id: request_id,
+            status_code: grpc.status.INTERNAL,
+            error_message: `Response type ${methodName}Response not found`,
+          };
+          call.write({ response: errorResponse });
+          return;
+        }
+        const responsePayload = ResponseType.serialize(response);
 
         const forwardResponse = {
           request_id: request_id,
@@ -158,13 +184,18 @@ function handleRequest(request, call) {
         };
         call.write({ response: forwardResponse });
       });
+    } else {
+      console.error(`[grpc_client] Method not found: ${methodName} (tried ${camelCaseMethodName})`);
+      const errorResponse = {
+        request_id: request_id,
+        status_code: grpc.status.UNIMPLEMENTED,
+        error_message: `Method ${methodName} not found on service ${serviceName}`,
+      };
+      call.write({ response: errorResponse });
     }
   }
 }
 
-function capitalizeFirstLetter(string) {
-  return string.charAt(0).toUpperCase() + string.slice(1);
-}
 
 async function queryThroughGateway(grpcPath, requestData) {
   return new Promise((resolve, reject) => {
