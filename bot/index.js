@@ -12,6 +12,7 @@ const { convertRoleAssignments } = require('../utils/role_assignment_converter')
 const { setupReactionVoteHandlers } = require('../handler/reaction_vote_system/reaction_vote_handler');
 const { scanActiveThreads } = require('../task/reaction_vote_scanner');
 const { refreshAllVoteStatusMessages } = require('../handler/reaction_vote_system/reaction_vote_manager');
+const PostAutoRoleHandler = require('../handler/post_autorole_handler');
 
 class Bot {
     constructor() {
@@ -24,6 +25,7 @@ class Bot {
         this.modalSubmitHandler = new ModalSubmitHandler();
         this.scannerManager = null;
         this.messageHandler = null;
+        this.postAutoRoleHandler = new PostAutoRoleHandler(this.client);
 
         this.setupInteractionHandlers();
         setupReactionVoteHandlers(this.client);
@@ -52,6 +54,12 @@ class Bot {
         this.messageHandler = new MessageHandler(this.client);
         this.client.on('messageCreate', async (message) => {
             await this.messageHandler.handleMessage(message);
+        });
+    }
+
+    setupThreadCreateHandler() {
+        this.client.on('threadCreate', async (thread) => {
+            await this.postAutoRoleHandler.handleThreadCreate(thread);
         });
     }
 
@@ -95,6 +103,7 @@ class Bot {
             this.setupScanner();
             this.setupScheduler();
             this.setupMessageHandler();
+            this.setupThreadCreateHandler();
             await scanActiveThreads(this.client);
             await refreshAllVoteStatusMessages(this.client);
         });
