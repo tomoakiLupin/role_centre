@@ -119,12 +119,30 @@ async function handleReaction(client, reaction, user, action) {
     await updateVoteStatusMessage(client, thread.id, voteData.voteCount, configData.data.threshold);
 
     if (voteData.voteCount >= configData.data.threshold) {
-        await thread.setLocked(true, '投票达到阈值，帖子已锁定');
-        await sendLog(client, 'info', {
-            module: '帖子反应投票系统',
-            operation: '帖子锁定',
-            message: `帖子 ${thread.name} (${thread.id}) 因投票达到阈值 ${configData.data.threshold} 已被锁定。`
-        });
+        const actionConfig = configData.data.action_config || { locking: true, archive: false };
+        const actionDescription = [];
+
+        if (actionConfig.locking) {
+            await thread.setLocked(true, '投票达到阈值，帖子已锁定');
+            actionDescription.push('锁定');
+            await sendLog(client, 'info', {
+                module: '帖子反应投票系统',
+                operation: '帖子锁定',
+                message: `帖子 ${thread.name} (${thread.id}) 因投票达到阈值 ${configData.data.threshold} 已被锁定。`
+            });
+        }
+
+        if (actionConfig.archive) {
+            await thread.setArchived(true, '投票达到阈值，帖子已归档');
+            actionDescription.push('归档');
+            await sendLog(client, 'info', {
+                module: '帖子反应投票系统',
+                operation: '帖子归档',
+                message: `帖子 ${thread.name} (${thread.id}) 因投票达到阈值 ${configData.data.threshold} 已被归档。`
+            });
+        }
+
+        await updateVoteStatusMessage(client, thread.id, voteData.voteCount, configData.data.threshold, actionDescription);
 
         // 授予角色给帖子作者
         try {
@@ -186,7 +204,7 @@ async function initializeVoteFile(thread) {
     }
 }
 
-async function updateVoteStatusMessage(client, threadId, currentVotes, threshold) {
+async function updateVoteStatusMessage(client, threadId, currentVotes, threshold, actions = []) {
     const voteData = await getVoteData(threadId);
     if (!voteData || !voteData.statusMessageId) return;
 
@@ -205,7 +223,13 @@ async function updateVoteStatusMessage(client, threadId, currentVotes, threshold
             );
         
         if (currentVotes >= threshold) {
-            newEmbed.setColor(0x2ecc71).setDescription('投票已达到目标，帖子已锁定！');
+            let description = '投票已达到目标';
+            if (actions.length > 0) {
+                description += `，帖子已${actions.join('和')}！`;
+            } else {
+                description += '！';
+            }
+            newEmbed.setColor(0x2ecc71).setDescription(description);
         }
 
         await message.edit({ embeds: [newEmbed] });

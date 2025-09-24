@@ -78,9 +78,9 @@ class ApplyRequestHandler {
                     await this.startManualReview(interaction, member, roleConfig, eligibilityResult);
                 } else {
                     // 不满足要求，直接拒绝
-                    await rejectionManager.addTemporaryRejection(member.id, targetRoleId, 72);
+                    await rejectionManager.addTemporaryRejection(member.id, targetRoleId, 12);
                     await interaction.editReply({
-                        content: `申请被拒绝\n原因: ${eligibilityResult.reason}\n\n您已被临时禁止申请此身份组 72 小时`
+                        content: `申请被拒绝\n原因: ${eligibilityResult.reason}\n\n您已被临时禁止申请此身份组 12 小时`
                     });
                     sendLog(interaction.client, 'info', {
                         module: '身份组申请',
