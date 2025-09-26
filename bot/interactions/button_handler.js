@@ -5,7 +5,7 @@ class ButtonHandler {
         this.applyRequestHandler = require('../../handler/apply_system/apply_request_handler');
         this.postApplyRequestHandler = require('../../handler/apply_system/post_apply_request_handler');
         this.grpcApplyRequestHandler = require('../../handler/apply_system/grpc_apply_request_handler');
-        this.voteHandler = require('../../handler/vote_system/vote_handler');
+        this.autoVoteHandler = require('../../handler/auto_vote');
         this.manageMyRolesButtonHandler = require('../../handler/button_handler/manage_my_roles_button_handler');
     }
 
@@ -28,8 +28,8 @@ class ButtonHandler {
                 await this.postApplyRequestHandler.handlePostApplyButton(interaction);
             } else if (interaction.customId.startsWith('grpc_apply:')) {
                 await this.grpcApplyRequestHandler.handleGrpcApplyButton(interaction);
-            } else if (interaction.customId.startsWith('vote:')) {
-                await this.voteHandler.handleVote(interaction);
+            } else if (interaction.customId.startsWith('auto_vote:')) {
+                await this.autoVoteHandler.handleVoteInteraction(interaction);
             } else if (interaction.customId.startsWith('role_leave_panel:')) {
                 const cacheId = interaction.customId.split(':')[1];
                 await this.roleLeaveButtonHandler.execute(interaction, cacheId);

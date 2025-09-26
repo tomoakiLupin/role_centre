@@ -154,17 +154,32 @@ class ApplyRequestHandler {
     async startManualReview(interaction, member, roleConfig, eligibilityResult) {
         try {
             // 检查用户是否已有正在进行的投票
-            const voteManager = require('../vote_system/vote_manager');
-            const existingVoteInfo = await voteManager.findActiveVoteByRequester(member.id);
+            const autoVoteHandler = require('../auto_vote');
+            const hasActiveVote = await autoVoteHandler.hasActiveVote(member.id);
 
-            if (existingVoteInfo) {
+            if (hasActiveVote) {
+                const activeVote = await autoVoteHandler.getUserActiveVote(member.id);
                 return await interaction.editReply({
-                    content: `您已经有一个正在进行中的投票 (ID: ${existingVoteInfo.voteId})，请等待该投票结束后再试`
+                    content: `您已经有一个正在进行中的投票 (ID: ${activeVote.voteId})，请等待该投票结束后再试`
                 });
             }
 
-            // 调用投票系统
-            const voteId = await voteManager.createVote(interaction.client, member, roleConfig);
+            // 从配置中提取配置ID
+            const autoApplyConfig = config.get('atuo_applyrole.autoApply_config', {});
+            let configId = null;
+            for (const [id, cfg] of Object.entries(autoApplyConfig)) {
+                if (cfg === roleConfig) {
+                    configId = id;
+                    break;
+                }
+            }
+
+            if (!configId) {
+                throw new Error('无法找到配置ID');
+            }
+
+            // 调用新的投票系统
+            const voteId = await autoVoteHandler.createVote(interaction.client, member, configId);
 
             await interaction.editReply({
                 content: `您的申请已提交人工审核\n检查结果: ${eligibilityResult.reason}\n投票ID: ${voteId}\n\n审核通常在1-24小时内完成，请耐心等待`
