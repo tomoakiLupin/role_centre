@@ -8,7 +8,7 @@ async function main() {
         await bot.start();
         startGrpcClient();
     } catch (error) {
-        console.error('启动机器人时出错:', error);
+        console.error('[main]启动机器人时出错:', error);
         process.exit(1);
     }
 }

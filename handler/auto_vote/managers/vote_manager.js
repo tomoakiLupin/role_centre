@@ -37,7 +37,20 @@ class VoteManager {
         const filePath = this.getVoteFilePath(voteId);
         try {
             const data = await fs.readFile(filePath, 'utf8');
-            return JSON.parse(data);
+            const voteData = JSON.parse(data);
+
+            // 为兼容性添加 adminConfirmVotes 字段（如果不存在）
+            if (!voteData.adminConfirmVotes) {
+                voteData.adminConfirmVotes = {
+                    approve: [],
+                    reject: []
+                };
+                // 自动保存更新后的数据结构
+                await this.saveVote(voteId, voteData);
+                console.log(`[VoteManager] 为投票 ${voteId} 添加了 adminConfirmVotes 字段`);
+            }
+
+            return voteData;
         } catch (error) {
             if (error.code === 'ENOENT') {
                 return null;
@@ -79,7 +92,7 @@ class VoteManager {
         }
 
         const { revive_config, data: configData, guild_id } = config;
-        const { review_channel_id, allow_vote_role } = revive_config;
+        const { review_channel_id } = revive_config;
         const { role_id: targetRoleId } = configData;
 
         if (!review_channel_id) {
@@ -108,6 +121,11 @@ class VoteManager {
                 approve: [],
                 reject: []
             },
+            // 管理员确认阶段的独立投票记录
+            adminConfirmVotes: {
+                approve: [],
+                reject: []
+            },
             createdAt: new Date().toISOString()
         };
 
@@ -116,11 +134,12 @@ class VoteManager {
         const buttons = VoteButtonBuilder.createVoteButtons(voteId, 'pending');
 
         // 发送提及消息
-        const userRole = allow_vote_role?.user;
         let mentionContent = '';
-        if (userRole) {
-            mentionContent = `<@&${userRole}> 新的投票申请`;
-        }
+        // 暂时禁用提及功能
+        // const userRole = allow_vote_role?.user;
+        // if (userRole) {
+        //     mentionContent = `<@&${userRole}> 新的投票申请`;
+        // }
 
         // 发送投票消息
         const voteMessage = await reviewChannel.send({
@@ -147,24 +166,63 @@ class VoteManager {
 
     // 处理投票
     async handleVote(interaction) {
-        await interaction.deferReply({ ephemeral: true });
+        const debugId = `${interaction.user.id}-${Date.now()}`;
+        const startTime = Date.now();
+
+        console.log(`[VoteManager] [${debugId}] 开始处理投票，customId: ${interaction.customId}`);
+
+        // 立即延迟回复，防止交互超时
+        try {
+            await interaction.deferReply({ ephemeral: true });
+            console.log(`[VoteManager] [${debugId}] deferReply 成功，耗时: ${Date.now() - startTime}ms`);
+        } catch (deferError) {
+            console.error(`[VoteManager] [${debugId}] deferReply 失败:`, deferError);
+            throw new Error(`无法延迟回复: ${deferError.message}`);
+        }
 
         const buttonInfo = VoteButtonBuilder.parseButtonId(interaction.customId);
         if (!buttonInfo) {
+            console.error(`[VoteManager] [${debugId}] 按钮解析失败: ${interaction.customId}`);
             return interaction.editReply({ content: '无效的投票按钮' });
         }
 
         const { action, voteId } = buttonInfo;
         const voter = interaction.member;
 
-        const voteData = await this.getVote(voteId);
-        if (!voteData || !['pending', 'pending_admin'].includes(voteData.status)) {
-            return interaction.editReply({ content: '这个投票已结束或不存在' });
+        console.log(`[VoteManager] [${debugId}] 投票信息: voteId=${voteId}, action=${action}, voter=${voter.user.tag} (${voter.id})`);
+
+        // 获取投票数据
+        let voteData;
+        try {
+            voteData = await this.getVote(voteId);
+            console.log(`[VoteManager] [${debugId}] 获取投票数据成功: status=${voteData?.status || 'null'}`);
+        } catch (error) {
+            console.error(`[VoteManager] [${debugId}] 获取投票数据失败:`, error);
+            return interaction.editReply({ content: '获取投票数据失败，请稍后重试' });
+        }
+
+        if (!voteData) {
+            console.warn(`[VoteManager] [${debugId}] 投票数据不存在: ${voteId}`);
+            return interaction.editReply({ content: '这个投票不存在' });
+        }
+
+        if (!['pending', 'pending_admin'].includes(voteData.status)) {
+            console.warn(`[VoteManager] [${debugId}] 投票状态无效: ${voteData.status}, 期望: pending 或 pending_admin`);
+            return interaction.editReply({ content: '这个投票已结束' });
         }
 
         // 检查投票权限
-        const permissionCheck = VotePermissionManager.checkVotePermission(voter, voteData, action);
+        let permissionCheck;
+        try {
+            permissionCheck = VotePermissionManager.checkVotePermission(voter, voteData, action);
+            console.log(`[VoteManager] [${debugId}] 权限检查结果:`, permissionCheck);
+        } catch (error) {
+            console.error(`[VoteManager] [${debugId}] 权限检查失败:`, error);
+            return interaction.editReply({ content: '权限检查失败，请稍后重试' });
+        }
+
         if (!permissionCheck.allowed) {
+            console.warn(`[VoteManager] [${debugId}] 权限被拒绝: ${permissionCheck.reason}`);
             return interaction.editReply({ content: permissionCheck.reason });
         }
 
@@ -172,47 +230,93 @@ class VoteManager {
         const voteType = action.includes('approve') ? 'approve' : 'reject';
         const oppositeType = voteType === 'approve' ? 'reject' : 'approve';
 
-        // 检查是否为管理员终局投票
-        const adminFinalCheck = VotePermissionManager.checkAdminFinalVote(voter, voteData);
+        console.log(`[VoteManager] [${debugId}] 投票类型: ${voteType}, 当前投票状态: ${voteData.status}`);
 
-        // 在管理员确认阶段，不允许重复投票
+        // 检查是否为管理员终局投票
+        let adminFinalCheck;
+        try {
+            adminFinalCheck = VotePermissionManager.checkAdminFinalVote(voter, voteData);
+            console.log(`[VoteManager] [${debugId}] 管理员终局检查:`, adminFinalCheck);
+        } catch (error) {
+            console.error(`[VoteManager] [${debugId}] 管理员终局检查失败:`, error);
+            return interaction.editReply({ content: '检查管理员权限失败，请稍后重试' });
+        }
+
+        // 在管理员确认阶段，使用独立的管理员确认投票记录
         if (voteData.status === 'pending_admin') {
-            const hasAlreadyVoted = voteData.votes[voteType].includes(voter.id) ||
-                                   voteData.votes[oppositeType].includes(voter.id);
-            if (hasAlreadyVoted) {
+            console.log(`[VoteManager] [${debugId}] 管理员确认阶段处理`);
+
+            // 检查管理员确认阶段是否已经投过票（而不是普通投票阶段）
+            const hasAdminConfirmVoted = voteData.adminConfirmVotes[voteType].includes(voter.id) ||
+                                        voteData.adminConfirmVotes[oppositeType].includes(voter.id);
+            console.log(`[VoteManager] [${debugId}] 管理员确认投票检查: ${hasAdminConfirmVoted}, adminApprove=${voteData.adminConfirmVotes.approve.includes(voter.id)}, adminReject=${voteData.adminConfirmVotes.reject.includes(voter.id)}`);
+
+            if (hasAdminConfirmVoted) {
+                console.warn(`[VoteManager] [${debugId}] 管理员在确认阶段已经操作过`);
                 return interaction.editReply({ content: '您在管理员确认阶段已经操作过，无法重复操作' });
             }
 
-            // 直接添加投票
-            voteData.votes[voteType].push(voter.id);
+            // 添加到管理员确认投票记录（不影响普通投票记录）
+            console.log(`[VoteManager] [${debugId}] 添加管理员确认投票: ${voteType}`);
+            voteData.adminConfirmVotes[voteType].push(voter.id);
         } else {
+            console.log(`[VoteManager] [${debugId}] 普通投票阶段处理`);
+
             // 普通投票阶段 - 允许撤销和更改投票
             if (voteData.votes[voteType].includes(voter.id)) {
+                console.log(`[VoteManager] [${debugId}] 撤销投票: ${voteType}`);
                 // 撤销投票
                 voteData.votes[voteType] = voteData.votes[voteType].filter(id => id !== voter.id);
-                await this.saveVote(voteId, voteData);
-                await interaction.editReply({ content: '您已撤销投票' });
-                return this.checkVoteStatus(interaction.client, voteId);
+
+                try {
+                    await this.saveVote(voteId, voteData);
+                    await interaction.editReply({ content: '您已撤销投票' });
+                    console.log(`[VoteManager] [${debugId}] 投票撤销完成，检查投票状态`);
+                    return this.checkVoteStatus(interaction.client, voteId);
+                } catch (error) {
+                    console.error(`[VoteManager] [${debugId}] 撤销投票保存失败:`, error);
+                    return interaction.editReply({ content: '撤销投票失败，请稍后重试' });
+                }
             }
 
+            console.log(`[VoteManager] [${debugId}] 添加/更改投票: ${voteType}`);
             // 移除相反的投票并添加新投票
             voteData.votes[oppositeType] = voteData.votes[oppositeType].filter(id => id !== voter.id);
             voteData.votes[voteType].push(voter.id);
         }
 
-        await this.saveVote(voteId, voteData);
+        // 保存投票数据
+        try {
+            await this.saveVote(voteId, voteData);
+            console.log(`[VoteManager] [${debugId}] 投票数据保存成功`);
+        } catch (error) {
+            console.error(`[VoteManager] [${debugId}] 投票数据保存失败:`, error);
+            return interaction.editReply({ content: '保存投票失败，请稍后重试' });
+        }
 
         // 反馈用户
-        if (voteData.status === 'pending_admin') {
-            const actionText = voteType === 'approve' ? '管理确认' : '管理拒绝';
-            await interaction.editReply({ content: `您已成功 **${actionText}**` });
-        } else {
-            const actionText = voteType === 'approve' ? '同意' : '拒绝';
-            await interaction.editReply({ content: `您已成功投出 **${actionText}** 票` });
+        try {
+            if (voteData.status === 'pending_admin') {
+                const actionText = voteType === 'approve' ? '管理确认' : '管理拒绝';
+                await interaction.editReply({ content: `您已成功 **${actionText}**` });
+                console.log(`[VoteManager] [${debugId}] 管理员操作反馈已发送: ${actionText}`);
+            } else {
+                const actionText = voteType === 'approve' ? '同意' : '拒绝';
+                await interaction.editReply({ content: `您已成功投出 **${actionText}** 票` });
+                console.log(`[VoteManager] [${debugId}] 普通投票反馈已发送: ${actionText}`);
+            }
+        } catch (error) {
+            console.error(`[VoteManager] [${debugId}] 发送用户反馈失败:`, error);
         }
 
         // 检查投票状态
-        await this.checkVoteStatus(interaction.client, voteId);
+        try {
+            console.log(`[VoteManager] [${debugId}] 开始检查投票状态`);
+            await this.checkVoteStatus(interaction.client, voteId);
+            console.log(`[VoteManager] [${debugId}] 投票状态检查完成，总耗时: ${Date.now() - startTime}ms`);
+        } catch (error) {
+            console.error(`[VoteManager] [${debugId}] 检查投票状态失败:`, error);
+        }
     }
 
     // 检查投票状态
@@ -228,38 +332,57 @@ class VoteManager {
             return;
         }
 
-        // 检查投票阈值
-        const thresholdResult = await VotePermissionManager.checkVoteThreshold(
-            voteData.votes,
-            voteData.config.revive_config.allow_vote_role,
-            guild
-        );
+        if (voteData.status === 'pending_admin') {
+            // 管理员确认阶段：基于 adminConfirmVotes 进行判断
+            console.log(`[VoteManager] 检查管理员确认阶段投票状态，adminConfirmVotes:`, voteData.adminConfirmVotes);
 
-        if (thresholdResult.error) {
-            console.error(`[VoteManager] 检查投票阈值失败:`, thresholdResult.error);
-            return;
-        }
+            const adminApproveCount = voteData.adminConfirmVotes.approve.length;
+            const adminRejectCount = voteData.adminConfirmVotes.reject.length;
 
-        // 如果被拒绝，立即结束投票
-        if (thresholdResult.shouldReject) {
-            console.log(`[VoteManager] 投票 ${voteId} 被拒绝`);
-            return this.finalizeVote(client, voteId, 'rejected', thresholdResult.adminRejected);
-        }
+            console.log(`[VoteManager] 管理员确认投票统计: approve=${adminApproveCount}, reject=${adminRejectCount}`);
 
-        // 在管理员确认阶段，如果管理员同意，立即通过
-        if (voteData.status === 'pending_admin' && thresholdResult.shouldApprove) {
-            console.log(`[VoteManager] 投票 ${voteId} 管理员确认，立即通过`);
-            return this.finalizeVote(client, voteId, 'approved');
-        }
+            // 如果有管理员拒绝，立即结束
+            if (adminRejectCount > 0) {
+                console.log(`[VoteManager] 投票 ${voteId} 管理员拒绝，立即结束`);
+                return this.finalizeVote(client, voteId, 'rejected', true);
+            }
 
-        // 如果用户投票达标且当前为普通投票阶段，进入管理员确认期
-        if (voteData.status === 'pending' && thresholdResult.shouldApprove) {
-            console.log(`[VoteManager] 投票 ${voteId} 用户投票达标，进入管理员等待期`);
-            return this.startPendingPeriod(client, voteId);
+            // 如果有管理员同意，立即通过
+            if (adminApproveCount > 0) {
+                console.log(`[VoteManager] 投票 ${voteId} 管理员确认，立即通过`);
+                return this.finalizeVote(client, voteId, 'approved');
+            }
+
+            // 没有管理员操作，继续等待
+            console.log(`[VoteManager] 投票 ${voteId} 等待管理员确认`);
+        } else {
+            // 普通投票阶段：基于 votes 进行判断
+            const thresholdResult = await VotePermissionManager.checkVoteThreshold(
+                voteData.votes,
+                voteData.config.revive_config.allow_vote_role,
+                guild
+            );
+
+            if (thresholdResult.error) {
+                console.error(`[VoteManager] 检查投票阈值失败:`, thresholdResult.error);
+                return;
+            }
+
+            // 如果被拒绝，立即结束投票
+            if (thresholdResult.shouldReject) {
+                console.log(`[VoteManager] 投票 ${voteId} 被拒绝`);
+                return this.finalizeVote(client, voteId, 'rejected', thresholdResult.adminRejected);
+            }
+
+            // 如果用户投票达标且当前为普通投票阶段，进入管理员确认期
+            if (voteData.status === 'pending' && thresholdResult.shouldApprove) {
+                console.log(`[VoteManager] 投票 ${voteId} 用户投票达标，进入管理员等待期`);
+                return this.startPendingPeriod(client, voteId);
+            }
         }
 
         // 如果投票未结束，更新消息显示
-        await this.updateVoteMessage(client, voteId, thresholdResult.counts);
+        await this.updateVoteMessage(client, voteId);
     }
 
     // 开始管理员确认期
@@ -297,7 +420,7 @@ class VoteManager {
     }
 
     // 更新投票消息
-    async updateVoteMessage(client, voteId, voteCounts) {
+    async updateVoteMessage(client, voteId) {
         const voteData = await this.getVote(voteId);
         if (!voteData) return;
 

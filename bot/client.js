@@ -24,7 +24,7 @@ class BotClient {
 
     setupEvents() {
         this.client.once('ready', () => {
-            console.log(`Bot 已上线，登录为：${this.client.user.tag}`);
+            console.log(`[bot_setup]Bot 已上线，登录为：${this.client.user.tag}`);
             sendLog(this.client, 'success', {
                 module: '机器人',
                 operation: '上线',

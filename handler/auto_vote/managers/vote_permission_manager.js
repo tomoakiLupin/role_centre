@@ -1,41 +1,100 @@
 class VotePermissionManager {
     static checkVotePermission(member, voteData, action) {
+        const debugId = `perm-${member.id}-${Date.now()}`;
+        console.log(`[VotePermissionManager] [${debugId}] 开始权限检查: user=${member.user.tag} (${member.id}), action=${action}`);
+
+        if (!member || !member.id || !member.user) {
+            console.error(`[VotePermissionManager] [${debugId}] 无效的成员对象:`, member);
+            return {
+                allowed: false,
+                reason: '无效的用户信息'
+            };
+        }
+
+        if (!voteData || !voteData.config) {
+            console.error(`[VotePermissionManager] [${debugId}] 无效的投票数据:`, voteData);
+            return {
+                allowed: false,
+                reason: '无效的投票数据'
+            };
+        }
+
         const { config, status, requesterId } = voteData;
         const { allow_vote_role } = config.revive_config;
 
+        console.log(`[VotePermissionManager] [${debugId}] 投票信息: status=${status}, requesterId=${requesterId}, allowVoteRole=`, allow_vote_role);
+
         // 申请人不能为自己投票
         if (member.id === requesterId) {
+            console.warn(`[VotePermissionManager] [${debugId}] 申请人试图为自己投票`);
             return {
                 allowed: false,
                 reason: '申请人不能为自己投票'
             };
         }
 
+        // 检查投票角色配置是否存在
+        if (!allow_vote_role || !allow_vote_role.admin || !allow_vote_role.user) {
+            console.error(`[VotePermissionManager] [${debugId}] 投票角色配置不完整:`, allow_vote_role);
+            return {
+                allowed: false,
+                reason: '投票角色配置错误'
+            };
+        }
+
         // 根据投票状态检查权限
+        let result;
         switch (status) {
             case 'pending':
-                return this.checkPendingVotePermission(member, allow_vote_role, action);
+                console.log(`[VotePermissionManager] [${debugId}] 检查普通投票权限`);
+                result = this.checkPendingVotePermission(member, allow_vote_role, action);
+                break;
             case 'pending_admin':
-                return this.checkAdminVotePermission(member, allow_vote_role, action);
+                console.log(`[VotePermissionManager] [${debugId}] 检查管理员投票权限`);
+                result = this.checkAdminVotePermission(member, allow_vote_role, action);
+                break;
             case 'approved':
             case 'rejected':
-                return {
+                console.warn(`[VotePermissionManager] [${debugId}] 投票已结束: ${status}`);
+                result = {
                     allowed: false,
                     reason: '投票已结束'
                 };
+                break;
             default:
-                return {
+                console.error(`[VotePermissionManager] [${debugId}] 未知的投票状态: ${status}`);
+                result = {
                     allowed: false,
                     reason: '未知的投票状态'
                 };
+                break;
         }
+
+        console.log(`[VotePermissionManager] [${debugId}] 权限检查结果:`, result);
+        return result;
     }
 
     static checkPendingVotePermission(member, allowVoteRole, action) {
-        const isAdmin = member.roles.cache.has(String(allowVoteRole.admin));
-        const isUser = member.roles.cache.has(String(allowVoteRole.user));
+        const debugId = `pending-${member.id}-${Date.now()}`;
+        console.log(`[VotePermissionManager] [${debugId}] 检查普通投票权限: admin=${allowVoteRole.admin}, user=${allowVoteRole.user}`);
+
+        let isAdmin = false;
+        let isUser = false;
+
+        try {
+            isAdmin = member.roles.cache.has(String(allowVoteRole.admin));
+            isUser = member.roles.cache.has(String(allowVoteRole.user));
+            console.log(`[VotePermissionManager] [${debugId}] 角色检查: isAdmin=${isAdmin}, isUser=${isUser}`);
+        } catch (error) {
+            console.error(`[VotePermissionManager] [${debugId}] 角色检查失败:`, error);
+            return {
+                allowed: false,
+                reason: '无法检查用户角色，请稍后重试'
+            };
+        }
 
         if (!isAdmin && !isUser) {
+            console.warn(`[VotePermissionManager] [${debugId}] 用户没有投票权限`);
             return {
                 allowed: false,
                 reason: '您没有权限参与本次投票'
@@ -43,6 +102,7 @@ class VotePermissionManager {
         }
 
         // 在普通投票阶段，管理员和用户都可以投票
+        console.log(`[VotePermissionManager] [${debugId}] 普通投票权限允许`);
         return {
             allowed: true,
             isAdmin,
@@ -51,15 +111,31 @@ class VotePermissionManager {
     }
 
     static checkAdminVotePermission(member, allowVoteRole, action) {
-        const isAdmin = member.roles.cache.has(String(allowVoteRole.admin));
+        const debugId = `admin-${member.id}-${Date.now()}`;
+        console.log(`[VotePermissionManager] [${debugId}] 检查管理员投票权限: admin=${allowVoteRole.admin}, action=${action}`);
+
+        let isAdmin = false;
+
+        try {
+            isAdmin = member.roles.cache.has(String(allowVoteRole.admin));
+            console.log(`[VotePermissionManager] [${debugId}] 管理员角色检查: isAdmin=${isAdmin}`);
+        } catch (error) {
+            console.error(`[VotePermissionManager] [${debugId}] 管理员角色检查失败:`, error);
+            return {
+                allowed: false,
+                reason: '无法检查管理员角色，请稍后重试'
+            };
+        }
 
         if (!isAdmin) {
+            console.warn(`[VotePermissionManager] [${debugId}] 非管理员试图在管理员确认阶段操作`);
             return {
                 allowed: false,
                 reason: '当前为管理员确认阶段，只有管理员可以操作'
             };
         }
 
+        console.log(`[VotePermissionManager] [${debugId}] 管理员权限允许`);
         return {
             allowed: true,
             isAdmin: true

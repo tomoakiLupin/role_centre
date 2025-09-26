@@ -56,10 +56,25 @@ module.exports = {
     // 初始化方法
     init() {
         console.log('[AutoVote] 自动投票模块已加载');
+
+        const voteHandler = getVoteHandler();
+        console.log('[AutoVote] 自动清理功能已启动');
+
         return {
             configManager: getVoteConfigManager(),
-            voteHandler: getVoteHandler(),
+            voteHandler: voteHandler,
             autoProcessor: new VoteAutoProcessor()
         };
+    },
+
+    // 停止自动清理（应用关闭时调用）
+    cleanup() {
+        try {
+            const voteHandler = getVoteHandler();
+            voteHandler.stopAutoCleanup();
+            console.log('[AutoVote] 自动清理功能已停止');
+        } catch (error) {
+            console.error('[AutoVote] 停止自动清理失败:', error);
+        }
     }
 };
