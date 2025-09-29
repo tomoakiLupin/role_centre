@@ -62,6 +62,20 @@ async function handleReaction(client, reaction, user, action) {
         // console.log(`[handleReaction] No config found for channel ${thread.parentId}`);
         return;
     }
+
+    const now = Math.floor(Date.now() / 1000);
+    const startAt = configData.data.start_at ? parseInt(configData.data.start_at, 10) : null;
+    const endAt = configData.data.end_at ? parseInt(configData.data.end_at, 10) : null;
+
+    if (startAt && now < startAt) {
+        console.log(`[handleReaction] Voting has not started yet for config ${configData.config_id}.`);
+        return;
+    }
+    if (endAt && now > endAt) {
+        console.log(`[handleReaction] Voting has ended for config ${configData.config_id}.`);
+        return;
+    }
+
     if (reaction.emoji.name !== configData.data.emoji_id) {
         // console.log(`[handleReaction] Emoji ${reaction.emoji.name} does not match config emoji ${configData.data.emoji_id}`);
         return;
@@ -75,10 +89,12 @@ async function handleReaction(client, reaction, user, action) {
     if (action === 'add' && !member.roles.cache.has(configData.data.vote_allow_roleid)) {
         // console.log(`[handleReaction] User ${user.tag} does not have the required role to vote.`);
         // If the user is not allowed to vote, remove their reaction.
-        try {
-            await reaction.users.remove(user.id);
-        } catch (error) {
-            // console.error(`[handleReaction] Failed to remove reaction for user ${user.tag}:`, error);
+        if (configData.data.vote_type !== 'role_give') {
+            try {
+                await reaction.users.remove(user.id);
+            } catch (error) {
+                // console.error(`[handleReaction] Failed to remove reaction for user ${user.tag}:`, error);
+            }
         }
         return;
     }
@@ -116,7 +132,7 @@ async function handleReaction(client, reaction, user, action) {
     console.log(`[handleReaction] Updated vote data for thread ${thread.id}:`, voteData);
 
     // Update the status message
-    await updateVoteStatusMessage(client, thread.id, voteData.voteCount, configData.data.threshold);
+    await updateVoteStatusMessage(client, thread.id, voteData.voteCount, configData.data.threshold, 'in_progress');
 
     if (voteData.voteCount >= configData.data.threshold) {
         const actionConfig = configData.data.action_config || { locking: true, archive: false };
@@ -142,7 +158,13 @@ async function handleReaction(client, reaction, user, action) {
             });
         }
 
-        await updateVoteStatusMessage(client, thread.id, voteData.voteCount, configData.data.threshold, actionDescription);
+        let description = '投票已达到目标';
+        if (actionDescription.length > 0) {
+            description += `，帖子已${actionDescription.join('和')}！`;
+        } else {
+            description += '！';
+        }
+        await updateVoteStatusMessage(client, thread.id, voteData.voteCount, configData.data.threshold, 'completed', description);
 
         // 授予角色给帖子作者
         try {
@@ -179,6 +201,13 @@ async function initializeVoteFile(thread) {
         return;
     }
 
+    const threadCreationTime = Math.floor(thread.createdTimestamp / 1000);
+    const startAt = configData.data.start_at ? parseInt(configData.data.start_at, 10) : null;
+    if (startAt && threadCreationTime < startAt) {
+        console.log(`[initializeVoteFile] Thread ${thread.id} was created before the voting start time. Skipping initialization.`);
+        return;
+    }
+
     let voteData = await getVoteData(thread.id);
     if (!voteData) {
         const statusEmbed = new EmbedBuilder()
@@ -204,7 +233,7 @@ async function initializeVoteFile(thread) {
     }
 }
 
-async function updateVoteStatusMessage(client, threadId, currentVotes, threshold, actions = []) {
+async function updateVoteStatusMessage(client, threadId, currentVotes, threshold, status = 'in_progress', reason = '') {
     const voteData = await getVoteData(threadId);
     if (!voteData || !voteData.statusMessageId) return;
 
@@ -221,20 +250,65 @@ async function updateVoteStatusMessage(client, threadId, currentVotes, threshold
                 { name: '当前票数', value: `${currentVotes}`, inline: true },
                 { name: '目标票数', value: `${threshold}`, inline: true }
             );
-        
-        if (currentVotes >= threshold) {
-            let description = '投票已达到目标';
-            if (actions.length > 0) {
-                description += `，帖子已${actions.join('和')}！`;
-            } else {
-                description += '！';
-            }
-            newEmbed.setColor(0x2ecc71).setDescription(description);
+
+        if (status === 'completed') {
+            newEmbed.setColor(0x2ecc71).setDescription(reason);
+        } else if (status === 'closed') {
+            newEmbed.setColor(0x95a5a6).setDescription(reason);
+        } else {
+            newEmbed.setDescription('该帖子的投票正在进行中...');
         }
 
         await message.edit({ embeds: [newEmbed] });
     } catch (error) {
         console.error(`[updateVoteStatusMessage] Error updating status message for thread ${threadId}:`, error);
+    }
+}
+
+async function closeVoteForThread(client, thread, configData, reason = '投票已结束') {
+    console.log(`[closeVoteForThread] Closing vote for thread ${thread.id} with reason: ${reason}`);
+    const actionConfig = configData.data.action_config || { locking: true, archive: false };
+    const actionDescription = [];
+
+    if (actionConfig.locking) {
+        try {
+            if (!thread.locked) {
+                await thread.setLocked(true, reason);
+                actionDescription.push('锁定');
+                await sendLog(client, 'info', {
+                    module: '帖子反应投票系统',
+                    operation: '帖子自动锁定',
+                    message: `帖子 ${thread.name} (${thread.id}) 因 ${reason} 已被锁定。`
+                });
+            }
+        } catch (error) {
+            console.error(`[closeVoteForThread] Failed to lock thread ${thread.id}:`, error);
+        }
+    }
+
+    if (actionConfig.archive) {
+        try {
+            if (!thread.archived) {
+                await thread.setArchived(true, reason);
+                actionDescription.push('归档');
+                await sendLog(client, 'info', {
+                    module: '帖子反应投票系统',
+                    operation: '帖子自动归档',
+                    message: `帖子 ${thread.name} (${thread.id}) 因 ${reason} 已被归档。`
+                });
+            }
+        } catch (error) {
+            console.error(`[closeVoteForThread] Failed to archive thread ${thread.id}:`, error);
+        }
+    }
+
+    const voteData = await getVoteData(thread.id);
+    if (voteData) {
+        let finalReason = reason;
+        if (actionDescription.length > 0) {
+            finalReason += `，帖子已${actionDescription.join('和')}。`;
+        }
+        await updateVoteStatusMessage(client, thread.id, voteData.voteCount, configData.data.threshold, 'closed', finalReason);
     }
 }
 
@@ -263,7 +337,12 @@ async function refreshAllVoteStatusMessages(client) {
                 continue;
             }
 
-            await updateVoteStatusMessage(client, threadId, voteData.voteCount, configData.data.threshold);
+            const status = voteData.voteCount >= configData.data.threshold ? 'completed' : 'in_progress';
+            let reason = '';
+            if (status === 'completed') {
+                reason = '投票已达到目标！';
+            }
+            await updateVoteStatusMessage(client, threadId, voteData.voteCount, configData.data.threshold, status, reason);
             console.log(`[refreshAll] Successfully refreshed vote status for thread ${threadId}.`);
         } catch (error) {
             console.error(`[refreshAll] Failed to refresh vote status for thread ${threadId}:`, error);
@@ -282,5 +361,6 @@ async function refreshAllVoteStatusMessages(client) {
 module.exports = {
     handleReaction,
     initializeVoteFile,
-    refreshAllVoteStatusMessages
+    refreshAllVoteStatusMessages,
+    closeVoteForThread
 };
