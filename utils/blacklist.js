@@ -39,6 +39,7 @@ const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
 
 /**
  * 检查用户是否在特定交互的黑名单中
+ * 智能检查：只检查配置文件中存在的前缀，提供良好的可扩展性
  * @param {string} userId - 用户的Discord ID
  * @param {string} customId - 交互的customId
  * @returns {Promise<boolean>} - 如果用户在黑名单中则返回true，否则返回false
@@ -49,24 +50,32 @@ async function isBlacklisted(userId, customId) {
         return false;
     }
 
-    // 检查按钮黑名单
-    if (blacklist.btn) {
-        for (const prefix in blacklist.btn) {
+    // 检查按钮黑名单：只检查配置中存在的前缀
+    if (blacklist.btn && Object.keys(blacklist.btn).length > 0) {
+        // 按前缀长度降序排序，优先匹配最长的前缀，避免误伤
+        // 例如：grpc_apply: 应该优先于 apply: 匹配
+        const sortedPrefixes = Object.keys(blacklist.btn).sort((a, b) => b.length - a.length);
+
+        for (const prefix of sortedPrefixes) {
+            // 只有当 customId 匹配配置的前缀时才检查
             if (customId.startsWith(prefix)) {
                 const userList = blacklist.btn[prefix];
                 if (Array.isArray(userList) && userList.includes(userId)) {
                     await sleep(2000); // 只对黑名单用户延迟2秒
                     return true;
                 }
+                // 找到匹配的前缀但用户不在黑名单中，直接返回 false
+                return false;
             }
         }
     }
 
     // 检查命令黑名单 (如果需要)
-    if (blacklist.cmd) {
+    if (blacklist.cmd && Object.keys(blacklist.cmd).length > 0) {
         // 可以在这里为命令实现类似的逻辑
     }
 
+    // customId 不匹配任何配置的前缀，不受限制
     return false;
 }
 

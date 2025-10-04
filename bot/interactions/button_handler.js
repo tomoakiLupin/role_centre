@@ -13,15 +13,16 @@ class ButtonHandler {
         if (!interaction.isButton() && !interaction.isStringSelectMenu()) {
             return false;
         }
-        
-        const { isBlacklisted, getRandomReason } = require('../../utils/blacklist');
-        if (await isBlacklisted(interaction.user.id, interaction.customId)) {
-            const reason = getRandomReason();
-            await interaction.reply({ content: reason, flags: [64] });
-            return;
-        }
 
         try {
+            // 智能黑名单检查：自动检查配置文件中存在的前缀
+            const { isBlacklisted, getRandomReason } = require('../../utils/blacklist');
+            if (await isBlacklisted(interaction.user.id, interaction.customId)) {
+                const reason = getRandomReason();
+                await interaction.reply({ content: reason, flags: [64] });
+                return;
+            }
+
             if (interaction.customId.startsWith('apply:')) {
                 await this.applyRequestHandler.handleApplyButton(interaction);
             } else if (interaction.customId.startsWith('post_apply:')) {
