@@ -109,6 +109,26 @@ async function handleReaction(client, reaction, user, action) {
         };
     }
 
+    // If status message doesn't exist, try to create it now.
+    if (!voteData.statusMessageId) {
+        try {
+            const statusEmbed = new EmbedBuilder()
+                .setColor(0x3498db)
+                .setTitle('📊 投票状态')
+                .setDescription('该帖子的投票正在进行中...')
+                .addFields(
+                    { name: '当前票数', value: `${voteData.voteCount}`, inline: true },
+                    { name: '目标票数', value: `${configData.data.threshold}`, inline: true }
+                )
+                .setTimestamp();
+            const statusMessage = await thread.send({ embeds: [statusEmbed] });
+            voteData.statusMessageId = statusMessage.id;
+            console.log(`[handleReaction] Created status message for thread ${thread.id}`);
+        } catch (error) {
+            console.error(`[handleReaction] Failed to create status message for thread ${thread.id}:`, error);
+        }
+    }
+
     const isVoter = voteData.voters.includes(user.id);
 
     if (action === 'add') {
@@ -220,16 +240,24 @@ async function initializeVoteFile(thread) {
             )
             .setTimestamp();
 
-        const statusMessage = await thread.send({ embeds: [statusEmbed] });
+        try {
+            const statusMessage = await thread.send({ embeds: [statusEmbed] });
 
-        voteData = {
-            threadId: thread.id,
-            voters: [],
-            voteCount: 0,
-            statusMessageId: statusMessage.id
-        };
-        await saveVoteData(thread.id, voteData);
-        console.log(`Initialized vote file for thread: ${thread.id}`);
+            voteData = {
+                threadId: thread.id,
+                voters: [],
+                voteCount: 0,
+                statusMessageId: statusMessage.id
+            };
+            await saveVoteData(thread.id, voteData);
+            console.log(`Initialized vote file for thread: ${thread.id}`);
+        } catch (error) {
+            if (error.code === 40058) {
+                console.log(`[initializeVoteFile] Cannot send initial message to thread ${thread.id}. The author needs to send a message first. The status message will be created on the first interaction.`);
+            } else {
+                console.error(`[initializeVoteFile] Failed to send initial message to thread ${thread.id}:`, error);
+            }
+        }
     }
 }
 

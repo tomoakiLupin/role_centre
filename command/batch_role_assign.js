@@ -20,7 +20,7 @@ module.exports = {
                 'zh-CN': '第一个身份组ID',
                 'zh-TW': '第一個身份組ID'
             })
-            .setRequired(true)
+            .setRequired(false)
     )
     .addStringOption(option =>
         option
@@ -45,10 +45,10 @@ module.exports = {
     .addStringOption(option =>
         option
             .setName('message_link')
-            .setDescription('消息链接，用于解析参与用户')
+            .setDescription('消息链接，用于解析参与用户，可使用逗号分隔多个链接')
             .setDescriptionLocalizations({
-                'zh-CN': '消息链接，用于解析参与用户',
-                'zh-TW': '消息鏈接，用於解析參與用戶'
+                'zh-CN': '消息链接，用于解析参与用户，可使用逗号分隔多个链接',
+                'zh-TW': '消息鏈接，用於解析參與用戶，可使用逗號分隔多個鏈接'
             })
             .setRequired(false)
     )

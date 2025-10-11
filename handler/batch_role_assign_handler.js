@@ -38,8 +38,11 @@ class BatchRoleAssignHandler {
 
             // 解析消息链接获取用户
             if (messageLink) {
-                const messageUsers = await this.parseMessageLink(messageLink, interaction);
-                userIds = [...userIds, ...messageUsers];
+                const messageLinks = messageLink.split(/[,，\s]+/).filter(link => link);
+                for (const link of messageLinks) {
+                    const messageUsers = await this.parseMessageLink(link, interaction);
+                    userIds = [...userIds, ...messageUsers];
+                }
             }
 
             // 去重
@@ -251,6 +254,31 @@ class BatchRoleAssignHandler {
             roleNames.push(role2.name);
         }
 
+        // 实际分配身份组给用户
+        const successCount = { value: 0 };
+        const failedUsers = [];
+
+        for (const userId of userIds) {
+            try {
+                const member = await guild.members.fetch(userId);
+
+                // 分配第一个身份组
+                if (!member.roles.cache.has(roleId1)) {
+                    await member.roles.add(roleId1);
+                }
+
+                // 分配第二个身份组（如果有）
+                if (roleId2 && !member.roles.cache.has(roleId2)) {
+                    await member.roles.add(roleId2);
+                }
+
+                successCount.value++;
+            } catch (error) {
+                console.error(`无法为用户 ${userId} 分配身份组:`, error);
+                failedUsers.push(userId);
+            }
+        }
+
         // 更新数据文件
         await this.fileEditor.atomic_write(async (data) => {
             if (!data) {
@@ -288,12 +316,12 @@ class BatchRoleAssignHandler {
                         timestamp: Math.floor(Date.now() / 1000),
                         data: [
                             {
-                                guild_id: parseInt(guild.id),
+                                guild_id: guild.id,
                                 guild_name: guild.name,
-                                role_ids: roleIds.map(id => parseInt(id)),
+                                role_ids: roleIds,
                                 role_names: roleNames,
                                 timestamp: new Date().toISOString(),
-                                assigned_user_ids: userIds.map(id => parseInt(id)),
+                                assigned_user_ids: userIds,
                                 operation_id: finalOperationId
                             }
                         ]
@@ -316,6 +344,8 @@ class BatchRoleAssignHandler {
                 { name: '🆔 操作ID', value: `\`${finalOperationId}\``, inline: true },
                 { name: '🏷️ 身份组', value: roleNames.join(', '), inline: true },
                 { name: '👥 用户数量', value: `${userIds.length} 个用户`, inline: true },
+                { name: '✅ 成功分配', value: `${successCount.value} 个用户`, inline: true },
+                { name: '❌ 失败', value: `${failedUsers.length} 个用户`, inline: true },
                 { name: '⏰ 有效期', value: `${timeout} 天`, inline: true },
                 { name: '🔄 自动过期', value: skipAutoExpire ? '否' : '是', inline: true }
             )
@@ -324,7 +354,9 @@ class BatchRoleAssignHandler {
 
         return {
             finalOperationId,
-            embed
+            embed,
+            successCount: successCount.value,
+            failedCount: failedUsers.length
         };
     }
 
