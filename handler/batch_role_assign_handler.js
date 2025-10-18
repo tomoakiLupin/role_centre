@@ -115,14 +115,26 @@ class BatchRoleAssignHandler {
                     return i.reply({ content: '❌ 你不能操作这个按钮', flags: [64] });
                 }
 
-                await i.deferUpdate();
-
                 if (i.customId === 'confirm_assign') {
+                    // 禁用按钮并显示处理中
+                    const processingEmbed = new EmbedBuilder()
+                        .setTitle('⏳ 正在处理中...')
+                        .setDescription('正在为您批量分发身份组，请稍候...')
+                        .setColor(0x00bfff); // DeepSkyBlue
+
+                    const disabledRow = new ActionRowBuilder().addComponents(
+                        confirmButton.setDisabled(true),
+                        cancelButton.setDisabled(true)
+                    );
+                    console.log(`[Batch Role Assign] Processing ${userIds.length} users...`);
+
+                    await i.update({ embeds: [processingEmbed], components: [disabledRow] });
+
                     const result = await this.processRoleAssignment({
                         operationId, roleId1, roleId2, role1, role2, userIds, timeout, skipAutoExpire, guild
                     });
 
-                    await i.editReply({ embeds: [result.embed], components: [] });
+                    await interaction.editReply({ embeds: [result.embed], components: [] });
 
                     sendLog(interaction.client, 'success', {
                         module: '批量分发',
@@ -139,18 +151,18 @@ class BatchRoleAssignHandler {
                         .setTitle('❌ 操作已取消')
                         .setDescription('批量分发操作已被用户取消')
                         .setColor(0xff0000);
-                    await i.editReply({ embeds: [cancelEmbed], components: [] });
+                    await i.update({ embeds: [cancelEmbed], components: [] });
                 }
+                collector.stop();
             });
 
             collector.on('end', async collected => {
-                if (collected.size === 0) {
-                    const timeoutEmbed = new EmbedBuilder()
-                        .setTitle('⏰ 操作超时')
-                        .setDescription('确认时间已过，批量分发操作已自动取消')
-                        .setColor(0xffff00);
-                    await interaction.editReply({ embeds: [timeoutEmbed], components: [] }).catch(() => {});
-                }
+                if (collected.size > 0) return;
+                const timeoutEmbed = new EmbedBuilder()
+                    .setTitle('⏰ 操作超时')
+                    .setDescription('确认时间已过，批量分发操作已自动取消')
+                    .setColor(0xffff00);
+                await interaction.editReply({ embeds: [timeoutEmbed], components: [] }).catch(() => {});
             });
 
         } catch (error) {
@@ -273,6 +285,7 @@ class BatchRoleAssignHandler {
                 }
 
                 successCount.value++;
+                console.log(`[Batch Role Assign] Successfully assigned roles (${roleNames.join(', ')}) to user ${userId}.`);
             } catch (error) {
                 console.error(`无法为用户 ${userId} 分配身份组:`, error);
                 failedUsers.push(userId);

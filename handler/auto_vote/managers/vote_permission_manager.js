@@ -219,7 +219,8 @@ class VotePermissionManager {
                         const member = await guild.members.fetch(userId);
                         if (member.roles.cache.has(String(allowVoteRole.admin))) {
                             adminApprovals++;
-                        } else if (member.roles.cache.has(String(allowVoteRole.user))) {
+                        }
+                        if (member.roles.cache.has(String(allowVoteRole.user))) {
                             userApprovals++;
                         }
                     } catch (error) {
@@ -233,7 +234,8 @@ class VotePermissionManager {
                         const member = await guild.members.fetch(userId);
                         if (member.roles.cache.has(String(allowVoteRole.admin))) {
                             adminRejections++;
-                        } else if (member.roles.cache.has(String(allowVoteRole.user))) {
+                        }
+                        if (member.roles.cache.has(String(allowVoteRole.user))) {
                             userRejections++;
                         }
                     } catch (error) {

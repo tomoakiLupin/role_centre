@@ -56,6 +56,15 @@ class VoteAutoProcessor {
         const creationTime = new Date(voteData.createdAt || 0);
         const timeSinceCreation = currentTime - creationTime;
 
+        // 7天 = 30 * 24 * 60 * 60 * 1000 毫秒
+        const THIRTY_DAYS = 7 * 24 * 60 * 60 * 1000;
+
+        // 如果超过7天，跳过不处理
+        if (timeSinceCreation >= THIRTY_DAYS) {
+            console.log(`[VoteAutoProcessor] 投票 ${voteId} 超过7天，跳过自动处理`);
+            return;
+        }
+
         // 48小时 = 48 * 60 * 60 * 1000 毫秒
         const FORTY_EIGHT_HOURS = 48 * 60 * 60 * 1000;
         const TWENTY_FOUR_HOURS = 24 * 60 * 60 * 1000;
