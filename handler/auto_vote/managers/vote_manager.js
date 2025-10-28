@@ -130,7 +130,7 @@ class VoteManager {
         };
 
         // 创建嵌入消息和按钮
-        const embed = await VoteEmbedBuilder.createVoteEmbedWithCounts(voteData, config, member.guild);
+        const embed = await VoteEmbedBuilder.createVoteEmbedWithCounts(voteData, config, member.guild, client);
         const buttons = VoteButtonBuilder.createVoteButtons(voteId, 'pending');
 
         // 发送提及消息
@@ -404,7 +404,7 @@ class VoteManager {
         const channel = await guild.channels.fetch(voteData.channelId);
         const message = await channel.messages.fetch(voteData.messageId);
 
-        const embed = VoteEmbedBuilder.createVoteEmbed(voteData, voteData.config);
+        const embed = VoteEmbedBuilder.createVoteEmbed(voteData, voteData.config, client);
         const buttons = VoteButtonBuilder.updateButtonsForStatus(voteId, 'pending_admin');
 
         await message.edit({ embeds: [embed], components: buttons });
@@ -429,7 +429,7 @@ class VoteManager {
             const channel = await guild.channels.fetch(voteData.channelId);
             const message = await channel.messages.fetch(voteData.messageId);
 
-            const embed = await VoteEmbedBuilder.createVoteEmbedWithCounts(voteData, voteData.config, guild);
+            const embed = await VoteEmbedBuilder.createVoteEmbedWithCounts(voteData, voteData.config, guild, client);
             await message.edit({ embeds: [embed] });
         } catch (error) {
             console.error(`[VoteManager] 更新投票消息失败 ${voteId}:`, error);
@@ -462,7 +462,7 @@ class VoteManager {
         const channel = await guild.channels.fetch(voteData.channelId);
         const message = await channel.messages.fetch(voteData.messageId);
 
-        const embed = VoteEmbedBuilder.createVoteEmbed(voteData, voteData.config);
+        const embed = VoteEmbedBuilder.createVoteEmbed(voteData, voteData.config, client);
         const buttons = VoteButtonBuilder.updateButtonsForStatus(voteId, result);
 
         await message.edit({ embeds: [embed], components: buttons });
@@ -525,6 +525,87 @@ class VoteManager {
             }
         }
         return null;
+    }
+
+    // 通过消息ID查找投票
+    async findVoteByMessageId(messageId) {
+        await this.ensureVotesDir();
+        const files = await fs.readdir(votesDirPath);
+
+        for (const file of files) {
+            if (path.extname(file) === '.json') {
+                const voteId = path.basename(file, '.json');
+                const voteData = await this.getVote(voteId);
+                if (voteData && voteData.messageId === messageId) {
+                    return { voteId, voteData };
+                }
+            }
+        }
+        return null;
+    }
+
+    // 取消投票（管理员强制关闭）
+    async cancelVote(client, voteId, reason, operatorId, anonymous = false, banUser = false) {
+        const voteData = await this.getVote(voteId);
+        if (!voteData) {
+            throw new Error(`投票 ${voteId} 不存在`);
+        }
+
+        if (!['pending', 'pending_admin'].includes(voteData.status)) {
+            throw new Error(`投票状态为 ${voteData.status}，无法取消`);
+        }
+
+        // 更新投票状态
+        voteData.status = 'cancelled';
+        voteData.cancelledAt = new Date().toISOString();
+        voteData.cancelReason = reason;
+        voteData.cancelOperatorId = operatorId; // 后台实名记录真实操作者
+        voteData.anonymous = anonymous; // 是否匿名（前台显示用）
+        voteData.banUser = banUser; // 是否封禁用户
+        if (voteData.pendingUntil) {
+            delete voteData.pendingUntil;
+        }
+
+        // 如果选择封禁用户，添加30天临时封禁
+        if (banUser) {
+            await rejectionManager.addTemporaryRejection(voteData.requesterId, voteData.targetRoleId, 720); // 30天 = 720小时
+            console.log(`[VoteManager] 已封禁用户 ${voteData.requesterId} 申请身份组 ${voteData.targetRoleId} 30天`);
+        }
+
+        await this.saveVote(voteId, voteData);
+
+        const guild = await client.guilds.fetch(voteData.guildId);
+        if (!guild) {
+            console.error(`[VoteManager] 无法找到服务器: ${voteData.guildId}`);
+            return;
+        }
+
+        // 更新投票消息
+        try {
+            const channel = await guild.channels.fetch(voteData.channelId);
+            const message = await channel.messages.fetch(voteData.messageId);
+
+            const embed = VoteEmbedBuilder.createVoteEmbed(voteData, voteData.config, client);
+            const buttons = VoteButtonBuilder.updateButtonsForStatus(voteId, 'cancelled');
+
+            await message.edit({ embeds: [embed], components: buttons });
+        } catch (error) {
+            console.error(`[VoteManager] 更新投票消息失败 ${voteId}:`, error);
+        }
+
+        const operationText = banUser ? '已中止' : '已取消';
+        console.log(`[VoteManager] 投票 ${voteId} 已被管理员 ${operatorId} ${operationText}，原因: ${reason}，匿名: ${anonymous}`);
+
+        // 发送日志（后台实名记录真实操作者）
+        const logMessage = banUser
+            ? `用户 <@${voteData.requesterId}> 的申请投票已被管理员中止并封禁\n[点击查看投票](https://discord.com/channels/${voteData.guildId}/${voteData.channelId}/${voteData.messageId})\n投票ID: ${voteId}\n操作者: <@${operatorId}>\n原因: ${reason}\n封禁时长: 30天`
+            : `用户 <@${voteData.requesterId}> 的申请投票已被管理员取消\n[点击查看投票](https://discord.com/channels/${voteData.guildId}/${voteData.channelId}/${voteData.messageId})\n投票ID: ${voteId}\n操作者: <@${operatorId}>\n原因: ${reason}`;
+
+        await sendLog(client, banUser ? 'warning' : 'info', {
+            module: '自动投票系统',
+            operation: banUser ? '投票已中止' : '投票已取消',
+            message: logMessage
+        });
     }
 }
 

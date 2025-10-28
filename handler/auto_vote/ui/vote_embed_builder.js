@@ -1,7 +1,7 @@
 const { EmbedBuilder } = require('discord.js');
 
 class VoteEmbedBuilder {
-    static createVoteEmbed(voteData, config) {
+    static createVoteEmbed(voteData, config, client = null) {
         const { requesterId, targetRoleId, status, votes, pendingUntil } = voteData;
         const { revive_config } = config;
         const { allow_vote_role } = revive_config;
@@ -31,6 +31,9 @@ class VoteEmbedBuilder {
                 break;
             case 'rejected':
                 this.addRejectedFields(embed);
+                break;
+            case 'cancelled':
+                this.addCancelledFields(embed, voteData, client);
                 break;
         }
 
@@ -90,12 +93,38 @@ class VoteEmbedBuilder {
             );
     }
 
+    static addCancelledFields(embed, voteData, client) {
+        const { banUser, anonymous, cancelOperatorId, cancelReason } = voteData;
+
+        // 根据是否封禁决定状态文案
+        const statusText = banUser ? '🚫 已中止' : '🚫 已取消';
+        const descriptionText = banUser ? '投票已被管理员中止' : '投票已被管理员取消';
+
+        const fields = [
+            { name: '最终状态', value: statusText, inline: false }
+        ];
+
+        // 决定显示的操作者ID：匿名时显示bot，否则显示真实操作者
+        if (cancelOperatorId) {
+            const displayOperatorId = anonymous && client ? client.user.id : cancelOperatorId;
+            fields.push({ name: '操作者', value: `<@${displayOperatorId}>`, inline: true });
+        }
+
+        if (cancelReason) {
+            fields.push({ name: banUser ? '中止原因' : '取消原因', value: cancelReason, inline: true });
+        }
+
+        embed.setDescription(descriptionText)
+            .addFields(...fields);
+    }
+
     static getColorByStatus(status) {
         const colors = {
             pending: 0x3498db,      // 蓝色
             pending_admin: 0xf1c40f, // 黄色
             approved: 0x2ecc71,     // 绿色
-            rejected: 0xe74c3c      // 红色
+            rejected: 0xe74c3c,     // 红色
+            cancelled: 0x95a5a6     // 灰色
         };
         return colors[status] || 0x95a5a6;
     }
@@ -125,13 +154,13 @@ class VoteEmbedBuilder {
     }
 
     // 创建带有实时票数的嵌入消息
-    static async createVoteEmbedWithCounts(voteData, config, guild) {
+    static async createVoteEmbedWithCounts(voteData, config, guild, client = null) {
         const { votes, status } = voteData;
         const { revive_config } = config;
         const { allow_vote_role } = revive_config;
 
         if (status !== 'pending') {
-            return this.createVoteEmbed(voteData, config);
+            return this.createVoteEmbed(voteData, config, client);
         }
 
         // 异步计算票数

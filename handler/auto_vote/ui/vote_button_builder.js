@@ -37,6 +37,7 @@ class VoteButtonBuilder {
 
             case 'approved':
             case 'rejected':
+            case 'cancelled':
                 // 投票结束后直接移除所有按钮
                 return [];
 
@@ -55,6 +56,7 @@ class VoteButtonBuilder {
                 return this.createVoteButtons(voteId, 'pending_admin');
             case 'approved':
             case 'rejected':
+            case 'cancelled':
                 // 投票完成后返回空数组，移除所有按钮
                 return [];
             default:
