@@ -56,7 +56,7 @@ function startGrpcClient() {
 
   registryClient = new registry_proto.RegistryService(
     GRPC_SERVER_ADDRESS,
-    grpc.credentials.createInsecure()
+    grpc.credentials.createSsl()
   );
 
   call = registryClient.EstablishConnection();

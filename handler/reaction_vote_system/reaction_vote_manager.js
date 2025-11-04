@@ -390,5 +390,6 @@ module.exports = {
     handleReaction,
     initializeVoteFile,
     refreshAllVoteStatusMessages,
-    closeVoteForThread
+    closeVoteForThread,
+    getVoteData
 };
