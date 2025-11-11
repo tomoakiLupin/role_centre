@@ -63,18 +63,18 @@ async function handleReaction(client, reaction, user, action) {
         return;
     }
 
-    const now = Math.floor(Date.now() / 1000);
-    const startAt = configData.data.start_at ? parseInt(configData.data.start_at, 10) : null;
-    const endAt = configData.data.end_at ? parseInt(configData.data.end_at, 10) : null;
+    // const now = Math.floor(Date.now() / 1000);
+    // const startAt = configData.data.start_at ? parseInt(configData.data.start_at, 10) : null;
+    // const endAt = configData.data.end_at ? parseInt(configData.data.end_at, 10) : null;
 
-    if (startAt && now < startAt) {
-        console.log(`[handleReaction] Voting has not started yet for config ${configData.config_id}.`);
-        return;
-    }
-    if (endAt && now > endAt) {
-        console.log(`[handleReaction] Voting has ended for config ${configData.config_id}.`);
-        return;
-    }
+    // if (startAt && now < startAt) {
+    //     console.log(`[handleReaction] Voting has not started yet for config ${configData.config_id}.`);
+    //     return;
+    // }
+    // if (endAt && now > endAt) {
+    //     console.log(`[handleReaction] Voting has ended for config ${configData.config_id}.`);
+    //     return;
+    // }
 
     if (reaction.emoji.name !== configData.data.emoji_id) {
         // console.log(`[handleReaction] Emoji ${reaction.emoji.name} does not match config emoji ${configData.data.emoji_id}`);
@@ -221,12 +221,12 @@ async function initializeVoteFile(thread) {
         return;
     }
 
-    const threadCreationTime = Math.floor(thread.createdTimestamp / 1000);
-    const startAt = configData.data.start_at ? parseInt(configData.data.start_at, 10) : null;
-    if (startAt && threadCreationTime < startAt) {
-        console.log(`[initializeVoteFile] Thread ${thread.id} was created before the voting start time. Skipping initialization.`);
-        return;
-    }
+    // const threadCreationTime = Math.floor(thread.createdTimestamp / 1000);
+    // const startAt = configData.data.start_at ? parseInt(configData.data.start_at, 10) : null;
+    // if (startAt && threadCreationTime < startAt) {
+    //     console.log(`[initializeVoteFile] Thread ${thread.id} was created before the voting start time. Skipping initialization.`);
+    //     return;
+    // }
 
     let voteData = await getVoteData(thread.id);
     if (!voteData) {
@@ -337,6 +337,16 @@ async function closeVoteForThread(client, thread, configData, reason = '投票�
             finalReason += `，帖子已${actionDescription.join('和')}。`;
         }
         await updateVoteStatusMessage(client, thread.id, voteData.voteCount, configData.data.threshold, 'closed', finalReason);
+    }
+
+    try {
+        const filePath = getVoteFilePath(thread.id);
+        await fs.unlink(filePath);
+        console.log(`[closeVoteForThread] Deleted vote file for thread ${thread.id}`);
+    } catch (error) {
+        if (error.code !== 'ENOENT') {
+            console.error(`[closeVoteForThread] Failed to delete vote file for thread ${thread.id}:`, error);
+        }
     }
 }
 
