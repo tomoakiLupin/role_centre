@@ -16,7 +16,8 @@ class ConfigLoader {
       'log_config.json',
       'blacklist.json',
       'post_reaction_autoapply.json',
-      'newpost_autorole_apply.json'
+      'newpost_autorole_apply.json',
+      'chat_ApplyConfig.json'
     ];
 
     // 加载所有配置文件
