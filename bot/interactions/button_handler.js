@@ -7,6 +7,7 @@ class ButtonHandler {
         this.grpcApplyRequestHandler = require('../../handler/apply_system/grpc_apply_request_handler');
         this.autoVoteHandler = require('../../handler/auto_vote');
         this.manageMyRolesButtonHandler = require('../../handler/button_handler/manage_my_roles_button_handler');
+        this.reactionVoteManager = require('../../handler/reaction_vote_system/reaction_vote_manager');
     }
 
     async handleInteraction(interaction) {
@@ -43,6 +44,8 @@ class ButtonHandler {
                 await this.roleButtonHandler.execute(interaction);
             } else if (interaction.customId.startsWith('manage_my_roles:')) {
                 await this.manageMyRolesButtonHandler.execute(interaction);
+            } else if (interaction.customId.startsWith('reaction_vote:')) {
+                await this.reactionVoteManager.togglePauseState(interaction);
             } else if (interaction.customId === 'confirm_assign' || interaction.customId === 'cancel_assign') {
                 // These are handled by a collector in batch_role_assign_handler.js, so we do nothing here.
                 return;
