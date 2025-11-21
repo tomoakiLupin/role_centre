@@ -15,7 +15,7 @@ class ButtonHandler {
         }
 
         try {
-            // 智能黑名单检查：自动检查配置文件中存在的前缀
+            // 黑名单检查：自动检查配置文件中存在的前缀
             const { isBlacklisted, getRandomReason } = require('../../utils/blacklist');
             if (await isBlacklisted(interaction.user.id, interaction.customId)) {
                 const reason = getRandomReason();
