@@ -23,7 +23,7 @@ class CreateInterviewPanelHandler {
         const panelConfig = guildConfig.data[configId];
 
         const embed = new EmbedBuilder()
-            .setTitle(title || panelConfig.name || '面谈申请')
+            .setTitle(title || panelConfig.category_name || '面谈申请')
             .setDescription(description || `点击下方的按钮开始申请流程。`)
             .setColor('#0099ff');
 

@@ -68,10 +68,10 @@ module.exports = {
 
         const choices = [];
         for (const [guildId, guildConfig] of Object.entries(applyConfig)) {
-            if (guildId === interaction.guildId) {
+            if (guildId === interaction.guildId && guildConfig.data) {
                 for (const [configId, configData] of Object.entries(guildConfig.data)) {
                     choices.push({
-                        name: `${configData.name} (${configId})`,
+                        name: `${guildConfig.name} - ${configData.category_name} (${configId})`,
                         value: configId
                     });
                 }
