@@ -2,7 +2,7 @@ const fs = require('fs');
 const path = require('path');
 
 class ConfigLoader {
-  constructor(configDir = './config') {
+  constructor(configDir = 'data/config') {
     this.configDir = configDir;
     this.config = {};
     this.loadConfigs();
