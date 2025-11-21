@@ -1,6 +1,7 @@
 const FileEditor = require('../utils/file_editor');
 const path = require('path');
-const botConfig = require('../config/bot_config.json');
+const { config } = require('../config/config');
+const botConfig = config.get('bot');
 const fs = require('fs').promises;
 
 const assignmentsPath = path.join(__dirname, '../data/role_assignments.json');

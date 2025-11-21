@@ -30,20 +30,25 @@ class CommandRegistry {
             return;
         }
 
-        const commandFiles = fs.readdirSync(commandsPath).filter(file => file.endsWith('.js'));
+        const entries = fs.readdirSync(commandsPath, { withFileTypes: true });
 
-        for (const file of commandFiles) {
-            try {
-                const command = require(path.join(commandsPath, file));
+        for (const entry of entries) {
+            const fullPath = path.join(commandsPath, entry.name);
+            if (entry.isDirectory()) {
+                this.loadCommands(fullPath); // Recursive call for subdirectories
+            } else if (entry.isFile() && entry.name.endsWith('.js')) {
+                try {
+                    const command = require(fullPath);
 
-                if (command.data && command.data.name) {
-                    this.commands.set(command.data.name, command);
-                    console.log(`[command_registry]✓ 已加载命令: ${command.data.name}`);
-                } else {
-                    console.warn(`[command_registry]✗ 命令文件 ${file} 必须导出包含 'data' 属性的对象`);
+                    if (command.data && command.data.name) {
+                        this.commands.set(command.data.name, command);
+                        console.log(`[command_registry]✓ 已加载命令: ${command.data.name}`);
+                    } else {
+                        console.warn(`[command_registry]✗ 命令文件 ${entry.name} 必须导出包含 'data' 属性的对象`);
+                    }
+                } catch (error) {
+                    console.error(`[command_registry]✗ 从 ${entry.name} 加载命令失败:`, error);
                 }
-            } catch (error) {
-                console.error(`[command_registry]✗ 从 ${file} 加载命令失败:`, error);
             }
         }
     }

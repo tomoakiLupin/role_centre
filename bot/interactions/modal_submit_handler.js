@@ -1,6 +1,7 @@
 class ModalSubmitHandler {
     constructor() {
         this.postApplyRequestHandler = require('../../handler/apply_system/post_apply_request_handler');
+        this.interviewApplyHandler = require('../../handler/chat_apply/interview_apply_handler');
     }
 
     async handleInteraction(interaction) {
@@ -11,6 +12,8 @@ class ModalSubmitHandler {
         try {
             if (interaction.customId.startsWith('post_apply_modal:')) {
                 await this.postApplyRequestHandler.handleModalSubmit(interaction);
+            } else if (interaction.customId.startsWith('interview_modal:')) {
+                await this.interviewApplyHandler.handleModalSubmit(interaction);
             } else {
                 // 可以为其他modal添加处理逻辑
                 await interaction.reply({ content: '未知的模态框提交', ephemeral: true });

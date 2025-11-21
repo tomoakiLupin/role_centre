@@ -1,6 +1,6 @@
 const fs = require('fs/promises');
 const path = require('path');
-const { EmbedBuilder } = require('discord.js');
+const { EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, PermissionFlagsBits } = require('discord.js');
 const { config } = require('../../config/config');
 const { sendLog } = require('../../utils/logger');
 
@@ -56,6 +56,13 @@ async function handleReaction(client, reaction, user, action) {
     if (!message.channel.isThread()) return;
 
     const thread = message.channel;
+
+    let voteData = await getVoteData(thread.id);
+    if (voteData && voteData.isPaused) {
+        console.log(`[handleReaction] Vote for thread ${thread.id} is paused. Ignoring reaction.`);
+        return;
+    }
+
     const configData = getReactionVoteConfig(thread.parentId);
 
     if (!configData) {
@@ -100,12 +107,13 @@ async function handleReaction(client, reaction, user, action) {
     }
     // console.log(`[handleReaction] User ${user.tag} has permission for action: ${action}`);
 
-    let voteData = await getVoteData(thread.id);
+    // let voteData = await getVoteData(thread.id); // Already fetched above
     if (!voteData) {
         voteData = {
             threadId: thread.id,
             voters: [],
-            voteCount: 0
+            voteCount: 0,
+            isPaused: false,
         };
     }
 
@@ -154,7 +162,7 @@ async function handleReaction(client, reaction, user, action) {
     // Update the status message
     await updateVoteStatusMessage(client, thread.id, voteData.voteCount, configData.data.threshold, 'in_progress');
 
-    if (voteData.voteCount >= configData.data.threshold) {
+    if (voteData.voteCount >= configData.data.threshold && !voteData.isPaused) {
         const actionConfig = configData.data.action_config || { locking: true, archive: false };
         const actionDescription = [];
 
@@ -230,24 +238,18 @@ async function initializeVoteFile(thread) {
 
     let voteData = await getVoteData(thread.id);
     if (!voteData) {
-        const statusEmbed = new EmbedBuilder()
-            .setColor(0x3498db)
-            .setTitle('📊 投票状态')
-            .setDescription(`该帖子的投票正在进行中...`)
-            .addFields(
-                { name: '当前票数', value: '0', inline: true },
-                { name: '目标票数', value: `${configData.data.threshold}`, inline: true }
-            )
-            .setTimestamp();
+        const initialVoteData = { voteCount: 0, isPaused: false, voters: [] };
+        const { embeds, components } = buildVoteStatusComponents(thread.id, initialVoteData, configData.data.threshold);
 
         try {
-            const statusMessage = await thread.send({ embeds: [statusEmbed] });
+            const statusMessage = await thread.send({ embeds, components });
 
             voteData = {
                 threadId: thread.id,
                 voters: [],
                 voteCount: 0,
-                statusMessageId: statusMessage.id
+                statusMessageId: statusMessage.id,
+                isPaused: false,
             };
             await saveVoteData(thread.id, voteData);
             console.log(`Initialized vote file for thread: ${thread.id}`);
@@ -261,6 +263,7 @@ async function initializeVoteFile(thread) {
     }
 }
 
+
 async function updateVoteStatusMessage(client, threadId, currentVotes, threshold, status = 'in_progress', reason = '') {
     const voteData = await getVoteData(threadId);
     if (!voteData || !voteData.statusMessageId) return;
@@ -273,21 +276,8 @@ async function updateVoteStatusMessage(client, threadId, currentVotes, threshold
         }
         const message = await thread.messages.fetch(voteData.statusMessageId);
 
-        const newEmbed = new EmbedBuilder(message.embeds[0].toJSON())
-            .setFields(
-                { name: '当前票数', value: `${currentVotes}`, inline: true },
-                { name: '目标票数', value: `${threshold}`, inline: true }
-            );
-
-        if (status === 'completed') {
-            newEmbed.setColor(0x2ecc71).setDescription(reason);
-        } else if (status === 'closed') {
-            newEmbed.setColor(0x95a5a6).setDescription(reason);
-        } else {
-            newEmbed.setDescription('该帖子的投票正在进行中...');
-        }
-
-        await message.edit({ embeds: [newEmbed] });
+        const { embeds, components } = buildVoteStatusComponents(threadId, voteData, threshold, status, reason);
+        await message.edit({ embeds, components });
     } catch (error) {
         console.error(`[updateVoteStatusMessage] Error updating status message for thread ${threadId}:`, error);
     }
@@ -395,11 +385,82 @@ async function refreshAllVoteStatusMessages(client) {
         }
     }
 }
+function buildVoteStatusComponents(threadId, voteData, threshold, status = 'in_progress', reason = '') {
+    const { voteCount, isPaused } = voteData;
+
+    const embed = new EmbedBuilder()
+        .setTitle('📊 投票状态')
+        .setFields(
+            { name: '当前票数', value: `${voteCount || 0}`, inline: true },
+            { name: '目标票数', value: `${threshold}`, inline: true }
+        )
+        .setTimestamp();
+
+    const buttons = new ActionRowBuilder().addComponents(
+        new ButtonBuilder()
+            .setCustomId(`reaction_vote:toggle_pause:${threadId}`)
+            .setLabel(isPaused ? '恢复' : '暂停')
+            .setStyle(isPaused ? ButtonStyle.Success : ButtonStyle.Secondary)
+            .setEmoji(isPaused ? '▶️' : '⏸️')
+    );
+
+    if (isPaused) {
+        embed.setColor(0x95a5a6).setDescription('⚠️ 投票已暂停');
+    } else if (status === 'completed') {
+        embed.setColor(0x2ecc71).setDescription(reason || '投票已达到目标！');
+    } else if (status === 'closed') {
+        embed.setColor(0x95a5a6).setDescription(reason || '投票已结束。');
+    } else {
+        embed.setColor(0x3498db).setDescription('该帖子的投票正在进行中...');
+    }
+
+    const components = (status === 'completed' || status === 'closed') ? [] : [buttons];
+
+    return { embeds: [embed], components };
+}
+
+async function togglePauseState(interaction) {
+    if (!interaction.member.permissions.has(PermissionFlagsBits.Administrator)) {
+        return interaction.reply({ content: '你没有权限执行此操作。', ephemeral: true });
+    }
+
+    const customIdParts = interaction.customId.split(':');
+    const threadId = customIdParts[2];
+
+    await interaction.deferUpdate();
+
+    try {
+        const voteData = await getVoteData(threadId);
+        if (!voteData) {
+            return interaction.followUp({ content: '找不到投票数据。', ephemeral: true });
+        }
+
+        voteData.isPaused = !voteData.isPaused;
+        await saveVoteData(threadId, voteData);
+
+        const thread = await interaction.client.channels.fetch(threadId);
+        const configData = getReactionVoteConfig(thread.parentId);
+        if (!configData) {
+            return interaction.followUp({ content: '找不到配置数据。', ephemeral: true });
+        }
+
+        await updateVoteStatusMessage(interaction.client, threadId, voteData.voteCount, configData.data.threshold);
+
+        const replyMessage = voteData.isPaused ? '投票已暂停。' : '投票已恢复。';
+        // No need to send a reply as the message is updated.
+        // await interaction.followUp({ content: replyMessage, ephemeral: true });
+
+    } catch (error) {
+        console.error(`[togglePauseState] Error:`, error);
+        await interaction.followUp({ content: '处理请求时发生错误。', ephemeral: true });
+    }
+}
 
 module.exports = {
     handleReaction,
     initializeVoteFile,
     refreshAllVoteStatusMessages,
     closeVoteForThread,
-    getVoteData
+    getVoteData,
+    togglePauseState,
 };

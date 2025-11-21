@@ -1,4 +1,5 @@
 const path = require('path');
+const { config } = require('../config/config');
 const BotClient = require('./client');
 const CommandRegistry = require('../utils/command_registry');
 const CommandService = require('./services/command_service');
@@ -65,8 +66,7 @@ class Bot {
 
     async setupCommands() {
         // 加载机器人配置
-        const botConfig = require('../config/bot_config.json');
-        const guildIds = botConfig.main_config.safety_setting.command_push_guildids;
+        const guildIds = config.get('bot.main_config.safety_setting.command_push_guildids');
 
         // 加载并注册命令
         this.commandRegistry.loadCommands(path.join(__dirname, '../command'));

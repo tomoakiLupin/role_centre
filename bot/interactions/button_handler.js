@@ -7,6 +7,10 @@ class ButtonHandler {
         this.grpcApplyRequestHandler = require('../../handler/apply_system/grpc_apply_request_handler');
         this.autoVoteHandler = require('../../handler/auto_vote');
         this.manageMyRolesButtonHandler = require('../../handler/button_handler/manage_my_roles_button_handler');
+        this.reactionVoteManager = require('../../handler/reaction_vote_system/reaction_vote_manager');
+        this.interviewApplyHandler = require('../../handler/chat_apply/interview_apply_handler');
+        this.interviewAdminHandler = require('../../handler/chat_apply/interview_admin_handler');
+        this.interviewResultHandler = require('../../handler/chat_apply/interview_result_handler');
     }
 
     async handleInteraction(interaction) {
@@ -43,6 +47,20 @@ class ButtonHandler {
                 await this.roleButtonHandler.execute(interaction);
             } else if (interaction.customId.startsWith('manage_my_roles:')) {
                 await this.manageMyRolesButtonHandler.execute(interaction);
+            } else if (interaction.customId.startsWith('reaction_vote:')) {
+                await this.reactionVoteManager.togglePauseState(interaction);
+            } else if (interaction.customId.startsWith('interview_apply:')) {
+                await this.interviewApplyHandler.handleButton(interaction);
+            } else if (interaction.customId.startsWith('interview_role_select:')) {
+                await this.interviewApplyHandler.handleSelectMenu(interaction);
+            } else if (interaction.customId.startsWith('interview_approve:')) {
+                await this.interviewAdminHandler.handleApprove(interaction);
+            } else if (interaction.customId.startsWith('interview_reject:')) {
+                await this.interviewAdminHandler.handleReject(interaction);
+            } else if (interaction.customId.startsWith('interview_pass:')) {
+                await this.interviewResultHandler.handlePass(interaction);
+            } else if (interaction.customId.startsWith('interview_fail:')) {
+                await this.interviewResultHandler.handleFail(interaction);
             } else if (interaction.customId === 'confirm_assign' || interaction.customId === 'cancel_assign') {
                 // These are handled by a collector in batch_role_assign_handler.js, so we do nothing here.
                 return;
