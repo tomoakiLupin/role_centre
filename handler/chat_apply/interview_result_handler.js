@@ -1,3 +1,6 @@
+const { config } = require('../../config/config');
+const { addTemporaryRejection } = require('../../utils/rejection_manager');
+
 class InterviewResultHandler {
     async handlePass(interaction) {
         const [, applicantId, roleId] = interaction.customId.split(':');
@@ -19,8 +22,24 @@ class InterviewResultHandler {
     }
 
     async handleFail(interaction) {
-        const [, applicantId] = interaction.customId.split(':');
+        const [, applicantId, roleId, configId] = interaction.customId.split(':');
         const member = await interaction.guild.members.fetch(applicantId).catch(() => null);
+
+        const guildConfig = config.get(`chat_Apply.${interaction.guildId}`);
+        const panelConfig = guildConfig?.data[configId];
+        const cooldownHours = panelConfig?.rejection_cooldown_hours?.interview_rejection;
+
+        if (cooldownHours && roleId) {
+            await addTemporaryRejection(applicantId, roleId, cooldownHours);
+        }
+
+        if (member) {
+            try {
+                await member.send(`很遗憾，您在 **${interaction.guild.name}** 的面谈未通过。`);
+            } catch (error) {
+                console.error(`向 ${member.user.tag} 发送面试失败通知失败:`, error);
+            }
+        }
         
         await interaction.reply({ content: `ℹ️ 已将此面谈标记为未通过。`, ephemeral: true });
         await this.closeChannel(interaction, `面谈未通过 - 操作人: ${interaction.user.tag}`);

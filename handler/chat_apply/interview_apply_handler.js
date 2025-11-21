@@ -1,5 +1,7 @@
 const { ActionRowBuilder, StringSelectMenuBuilder, ModalBuilder, TextInputBuilder, TextInputStyle, EmbedBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
 const { config } = require('../../config/config');
+const { isRejected, addTemporaryRejection } = require('../../utils/rejection_manager');
+const { formatDuration } = require('../../utils/time_format');
 
 class InterviewApplyHandler {
     async handleButton(interaction) {
@@ -36,12 +38,29 @@ class InterviewApplyHandler {
         const [, configId] = interaction.customId.split(':');
         const selectedRoleId = interaction.values[0];
         const member = interaction.member;
+        const userId = member.id;
+
+        // Check for existing rejection
+        const rejectionStatus = await isRejected(userId, selectedRoleId);
+        if (rejectionStatus.rejected) {
+            const expiry = new Date(rejectionStatus.rejection.expiry);
+            const remainingSeconds = Math.round((expiry - new Date()) / 1000);
+            const remainingTime = formatDuration(remainingSeconds);
+            return interaction.reply({ content: `❌ 您目前无法申请该身份组，请在 ${remainingTime} 后再试。`, ephemeral: true });
+        }
 
         const guildConfig = config.get(`chat_Apply.${interaction.guildId}`);
-        const roleConfig = guildConfig?.data[configId]?.role_config;
+        const panelConfig = guildConfig?.data[configId];
+        const roleConfig = panelConfig?.role_config;
 
         if (roleConfig && roleConfig.musthold_role_id) {
             if (!member.roles.cache.has(roleConfig.musthold_role_id)) {
+                const cooldownHours = panelConfig.rejection_cooldown_hours?.no_required_role;
+                if (cooldownHours) {
+                    await addTemporaryRejection(userId, selectedRoleId, cooldownHours);
+                    const remainingTime = formatDuration(cooldownHours * 3600);
+                    return interaction.reply({ content: `❌ 您需要拥有 <@&${roleConfig.musthold_role_id}> 身份才能申请。由于缺少必要身份组，您将在 ${remainingTime} 内无法再次申请。`, ephemeral: true });
+                }
                 return interaction.reply({ content: `❌ 您需要拥有 <@&${roleConfig.musthold_role_id}> 身份才能申请。`, ephemeral: true });
             }
         }
@@ -98,7 +117,7 @@ class InterviewApplyHandler {
             .setStyle(ButtonStyle.Success);
 
         const rejectButton = new ButtonBuilder()
-            .setCustomId(`interview_reject:${interaction.user.id}`)
+            .setCustomId(`interview_reject:${configId}:${interaction.user.id}:${roleId}`)
             .setLabel('拒绝')
             .setStyle(ButtonStyle.Danger);
 

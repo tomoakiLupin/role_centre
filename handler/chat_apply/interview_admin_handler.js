@@ -1,5 +1,6 @@
 const { ChannelType, PermissionsBitField, EmbedBuilder } = require('discord.js');
 const { config } = require('../../config/config');
+const { addTemporaryRejection } = require('../../utils/rejection_manager');
 
 class InterviewAdminHandler {
     async handleApprove(interaction) {
@@ -44,6 +45,7 @@ class InterviewAdminHandler {
                         allow: [PermissionsBitField.Flags.ViewChannel, PermissionsBitField.Flags.SendMessages, PermissionsBitField.Flags.ReadMessageHistory],
                     },
                 ],
+                topic: `面试申请 - 申请人ID: ${userId}, 身份组ID: ${roleId}, 配置ID: ${configId}`,
             });
 
             await channel.send(`欢迎 ${applicant}！这里是你的专属面谈频道。\n\n请在此等候，管理员会尽快与你联系。`);
@@ -64,21 +66,33 @@ class InterviewAdminHandler {
     }
 
     async handleReject(interaction) {
-        const [, userId] = interaction.customId.split(':');
+        const [, configId, userId, roleId] = interaction.customId.split(':');
         const applicant = await interaction.client.users.fetch(userId).catch(() => null);
+
+        const guildConfig = config.get(`chat_Apply.${interaction.guildId}`);
+        const panelConfig = guildConfig?.data[configId];
+        const cooldownHours = panelConfig?.rejection_cooldown_hours?.pre_screen_rejection;
+
+        if (cooldownHours && roleId) {
+            await addTemporaryRejection(userId, roleId, cooldownHours);
+        }
 
         if (applicant) {
             try {
-                await applicant.send(`很遗憾，您在 **${interaction.guild.name}** 的面谈申请已被拒绝。`);
+                await applicant.send(`很遗憾，您在 **${interaction.guild.name}** 的面谈申请已被预审拒绝。`);
             } catch (error) {
                 console.error(`向 ${applicant.tag} 发送拒绝通知失败:`, error);
             }
         }
 
-        await interaction.reply({ content: `✅ 已拒绝 ${applicant ? applicant.tag : '未知用户'} 的申请。`, ephemeral: true });
+        const originalMessage = interaction.message;
+        const newEmbed = new EmbedBuilder(originalMessage.embeds[0].data)
+            .setColor('#ED4245') // Red
+            .setFooter({ text: `已由 ${interaction.user.tag} 拒绝` });
 
-        // Disable buttons on the original message
-        await interaction.message.edit({ components: [] });
+        await originalMessage.edit({ embeds: [newEmbed], components: [] });
+
+        await interaction.reply({ content: `✅ 已拒绝 ${applicant ? applicant.tag : '未知用户'} 的申请。`, ephemeral: true });
     }
 }
 

@@ -11,7 +11,7 @@ class CloseInterviewHandler {
     async execute(interaction) {
         const { channel, guildId, user } = interaction;
 
-        if (!channel.name.startsWith('面谈-')) {
+        if (!channel.name.startsWith('ticket-')) {
             return interaction.reply({ content: '❌ 此命令只能在面谈频道中使用。', ephemeral: true });
         }
 
@@ -26,17 +26,20 @@ class CloseInterviewHandler {
         }
 
         const applicantId = applicantPermission.id;
-        const guildConfig = config.get(`chat_Apply.${guildId}`);
-        let giveRoleId = null;
 
-        if (guildConfig && guildConfig.data) {
-            for (const cfg of Object.values(guildConfig.data)) {
-                if (channel.parent && channel.parent.name === cfg.category_name) {
-                    giveRoleId = cfg.role_config?.give_role_id;
-                    break;
-                }
-            }
+        // Extract info from channel topic
+        const topic = channel.topic || '';
+        const roleIdMatch = topic.match(/身份组ID: (\d+)/);
+        const configIdMatch = topic.match(/配置ID: (\d+)/);
+
+        if (!roleIdMatch || !configIdMatch) {
+            return interaction.reply({ content: '❌ 频道主题信息不完整，无法确定申请的身份组或配置。', ephemeral: true });
         }
+        const roleId = roleIdMatch[1];
+        const configId = configIdMatch[1];
+
+        const guildConfig = config.get(`chat_Apply.${guildId}`);
+        const giveRoleId = guildConfig?.data[configId]?.role_config?.give_role_id;
 
         if (!giveRoleId) {
             return interaction.reply({ content: '❌ 未能找到此面谈对应的 `give_role_id` 配置。', ephemeral: true });
@@ -48,7 +51,7 @@ class CloseInterviewHandler {
                 .setLabel('通过并授予身份')
                 .setStyle(ButtonStyle.Success),
             new ButtonBuilder()
-                .setCustomId(`interview_fail:${applicantId}`)
+                .setCustomId(`interview_fail:${applicantId}:${roleId}:${configId}`)
                 .setLabel('不授予身份')
                 .setStyle(ButtonStyle.Secondary)
         );
