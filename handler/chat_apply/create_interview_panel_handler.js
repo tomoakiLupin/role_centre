@@ -15,7 +15,7 @@ class CreateInterviewPanelHandler {
         const buttonLabel = interaction.options.getString('button_label');
         const channel = interaction.options.getChannel('channel') || interaction.channel;
 
-        const guildConfig = config.get(`chat_Apply.${interaction.guildId}`);
+        const guildConfig = config.get(`chat_ApplyConfig.${interaction.guildId}`);
         if (!guildConfig || !guildConfig.data[configId]) {
             return interaction.reply({ content: '❌ 未找到指定的配置ID。', ephemeral: true });
         }

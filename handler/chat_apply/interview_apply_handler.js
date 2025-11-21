@@ -6,7 +6,7 @@ const { formatDuration } = require('../../utils/time_format');
 class InterviewApplyHandler {
     async handleButton(interaction) {
         const [, configId] = interaction.customId.split(':');
-        const guildConfig = config.get(`chat_Apply.${interaction.guildId}`);
+        const guildConfig = config.get(`chat_ApplyConfig.${interaction.guildId}`);
 
         if (!guildConfig || !guildConfig.data[configId] || !guildConfig.data[configId].choose) {
             return interaction.reply({ content: '❌ 此申请面板的配置无效或不完整。', ephemeral: true });
@@ -49,7 +49,7 @@ class InterviewApplyHandler {
             return interaction.reply({ content: `❌ 您目前无法申请该身份组，请在 ${remainingTime} 后再试。`, ephemeral: true });
         }
 
-        const guildConfig = config.get(`chat_Apply.${interaction.guildId}`);
+        const guildConfig = config.get(`chat_ApplyConfig.${interaction.guildId}`);
         const panelConfig = guildConfig?.data[configId];
         const roleConfig = panelConfig?.role_config;
 
@@ -86,7 +86,7 @@ class InterviewApplyHandler {
         const [, configId, roleId] = interaction.customId.split(':');
         const introduction = interaction.fields.getTextInputValue('introduction');
 
-        const guildConfig = config.get(`chat_Apply.${interaction.guildId}`);
+        const guildConfig = config.get(`chat_ApplyConfig.${interaction.guildId}`);
         const panelConfig = guildConfig?.data[configId];
 
         if (!panelConfig || !panelConfig.admin_channle_id) {

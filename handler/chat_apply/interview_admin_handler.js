@@ -11,7 +11,7 @@ class InterviewAdminHandler {
             return interaction.reply({ content: '❌ 无法找到申请人，可能已经离开服务器。', ephemeral: true });
         }
 
-        const guildConfig = config.get(`chat_Apply.${interaction.guildId}`);
+        const guildConfig = config.get(`chat_ApplyConfig.${interaction.guildId}`);
         const panelConfig = guildConfig?.data[configId];
 
         if (!panelConfig || !panelConfig.interview_category_id) {
@@ -34,12 +34,14 @@ class InterviewAdminHandler {
             }
             const newTicketNum = maxTicketNum + 1;
             const newChannelName = `ticket-${String(newTicketNum).padStart(4, '0')}`;
+            const parentOverwrites = category.permissionOverwrites.cache;
 
             const channel = await interaction.guild.channels.create({
                 name: newChannelName,
                 type: ChannelType.GuildText,
                 parent: category,
                 permissionOverwrites: [
+                    ...parentOverwrites.values(),
                     {
                         id: applicant.id,
                         allow: [PermissionsBitField.Flags.ViewChannel, PermissionsBitField.Flags.SendMessages, PermissionsBitField.Flags.ReadMessageHistory],
@@ -69,7 +71,7 @@ class InterviewAdminHandler {
         const [, configId, userId, roleId] = interaction.customId.split(':');
         const applicant = await interaction.client.users.fetch(userId).catch(() => null);
 
-        const guildConfig = config.get(`chat_Apply.${interaction.guildId}`);
+        const guildConfig = config.get(`chat_ApplyConfig.${interaction.guildId}`);
         const panelConfig = guildConfig?.data[configId];
         const cooldownHours = panelConfig?.rejection_cooldown_hours?.pre_screen_rejection;
 

@@ -64,7 +64,7 @@ module.exports = {
 
     async autocomplete(interaction) {
         const focusedValue = interaction.options.getFocused();
-        const applyConfig = config.get('chat_Apply', {});
+        const applyConfig = config.get('chat_ApplyConfig', {});
 
         const choices = [];
         for (const [guildId, guildConfig] of Object.entries(applyConfig)) {

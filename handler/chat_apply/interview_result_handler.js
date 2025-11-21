@@ -14,7 +14,7 @@ class InterviewResultHandler {
         try {
             await member.roles.add(roleId);
             await interaction.reply({ content: `✅ 已成功授予 <@&${roleId}> 身份给 ${member.user.tag}。`, ephemeral: true });
-            await this.closeChannel(interaction, `面谈通过 - 操作人: ${interaction.user.tag}`);
+            // await this.closeChannel(interaction, `面谈通过 - 操作人: ${interaction.user.tag}`);
         } catch (error) {
             console.error('授予身份时出错:', error);
             await interaction.reply({ content: '❌ 授予身份时发生错误。', ephemeral: true });
@@ -25,7 +25,7 @@ class InterviewResultHandler {
         const [, applicantId, roleId, configId] = interaction.customId.split(':');
         const member = await interaction.guild.members.fetch(applicantId).catch(() => null);
 
-        const guildConfig = config.get(`chat_Apply.${interaction.guildId}`);
+        const guildConfig = config.get(`chat_ApplyConfig.${interaction.guildId}`);
         const panelConfig = guildConfig?.data[configId];
         const cooldownHours = panelConfig?.rejection_cooldown_hours?.interview_rejection;
 
@@ -42,7 +42,7 @@ class InterviewResultHandler {
         }
         
         await interaction.reply({ content: `ℹ️ 已将此面谈标记为未通过。`, ephemeral: true });
-        await this.closeChannel(interaction, `面谈未通过 - 操作人: ${interaction.user.tag}`);
+        // await this.closeChannel(interaction, `面谈未通过 - 操作人: ${interaction.user.tag}`);
     }
 
     async closeChannel(interaction, reason = '无特定原因') {
