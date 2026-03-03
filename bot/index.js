@@ -59,8 +59,10 @@ class Bot {
     }
 
     setupThreadCreateHandler() {
+        const forumPanelHandler = require('../handler/forum_panel_handler');
         this.client.on('threadCreate', async (thread) => {
             await this.postAutoRoleHandler.handleThreadCreate(thread);
+            await forumPanelHandler.handleThreadCreate(thread);
         });
     }
 

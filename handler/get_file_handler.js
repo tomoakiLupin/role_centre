@@ -6,6 +6,7 @@ class GetFileHandler {
     constructor() {
         this.commandName = 'get_file';
         this.db = getDbInstance();
+        this.requiredPermission = 0; // PERMISSION_LEVELS.NONE
     }
 
     async execute(interaction) {

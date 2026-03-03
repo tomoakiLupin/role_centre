@@ -61,6 +61,9 @@ class ButtonHandler {
                 await this.interviewResultHandler.handlePass(interaction);
             } else if (interaction.customId.startsWith('interview_fail:')) {
                 await this.interviewResultHandler.handleFail(interaction);
+            } else if (interaction.customId.startsWith('fp_')) {
+                const forumCommandsHandler = require('../../handler/forum_commands_handler');
+                await forumCommandsHandler.handleButton(interaction);
             } else if (interaction.customId === 'confirm_assign' || interaction.customId === 'cancel_assign') {
                 // These are handled by a collector in batch_role_assign_handler.js, so we do nothing here.
                 return;

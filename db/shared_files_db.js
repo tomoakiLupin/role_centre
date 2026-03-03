@@ -45,6 +45,13 @@ class SharedFilesDB {
                                 last_download_time TEXT,
                                 PRIMARY KEY (user_id, download_date)
                             )
+                        `);
+
+                        this.db.run(`
+                            CREATE TABLE IF NOT EXISTS user_preferences (
+                                user_id TEXT PRIMARY KEY,
+                                disable_auto_prompt INTEGER DEFAULT 0
+                            )
                         `, (err) => {
                             if (err) reject(err);
                             else resolve(this.db);
@@ -132,6 +139,40 @@ class SharedFilesDB {
                     }
                 }
             );
+        });
+    }
+
+    async getUserPreference(userId) {
+        await this.initDB();
+        return new Promise((resolve, reject) => {
+            this.db.get(`SELECT disable_auto_prompt FROM user_preferences WHERE user_id = ?`, [userId], (err, row) => {
+                if (err) reject(err);
+                else resolve(row ? row.disable_auto_prompt === 1 : false);
+            });
+        });
+    }
+
+    async setUserPreference(userId, disablePrompt) {
+        await this.initDB();
+        return new Promise((resolve, reject) => {
+            this.db.run(`
+                INSERT INTO user_preferences (user_id, disable_auto_prompt) 
+                VALUES (?, ?) 
+                ON CONFLICT(user_id) DO UPDATE SET disable_auto_prompt = ?
+            `, [userId, disablePrompt ? 1 : 0, disablePrompt ? 1 : 0], (err) => {
+                if (err) reject(err);
+                else resolve(true);
+            });
+        });
+    }
+
+    async getLatestFileBySourceMessage(sourceMessageId) {
+        await this.initDB();
+        return new Promise((resolve, reject) => {
+            this.db.get(`SELECT * FROM shared_files WHERE source_message_id = ? ORDER BY upload_time DESC LIMIT 1`, [sourceMessageId], (err, row) => {
+                if (err) reject(err);
+                else resolve(row);
+            });
         });
     }
 }
