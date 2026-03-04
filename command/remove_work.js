@@ -1,5 +1,5 @@
 const { SlashCommandBuilder } = require('discord.js');
-const forumCommandsHandler = require('../handler/forum_commands_handler');
+const forumCommandsHandler = require('../handler/file_share/forum_commands_handler');
 
 module.exports = {
     data: new SlashCommandBuilder()
