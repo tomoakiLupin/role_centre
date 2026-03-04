@@ -14,23 +14,35 @@ module.exports = {
         })
         .addAttachmentOption(option =>
             option.setName('file')
+                .setNameLocalizations({ 'zh-CN': '作品文件', 'zh-TW': '作品文件' })
                 .setDescription('要上传的文件')
                 .setRequired(true)
         )
-        .addBooleanOption(option =>
+        .addStringOption(option =>
             option.setName('req_reaction')
+                .setNameLocalizations({ 'zh-CN': '是否点赞', 'zh-TW': '是否點讚' })
                 .setDescription('是否要求下载者在当前频道的首贴点赞?')
                 .setRequired(false)
+                .addChoices(
+                    { name: '✅ 是', value: 'true' },
+                    { name: '❌ 否', value: 'false' }
+                )
         )
-        .addBooleanOption(option =>
-            option.setName('req_captcha')
-                .setDescription('是否要求下载者输入验证码?')
+        .addStringOption(option =>
+            option.setName('captcha_text')
+                .setNameLocalizations({ 'zh-CN': '提取密码', 'zh-TW': '提取密碼' })
+                .setDescription('是否要求输入提取码/口令？(如有,请在此输入您设定的口令)')
                 .setRequired(false)
         )
-        .addBooleanOption(option =>
+        .addStringOption(option =>
             option.setName('req_terms')
+                .setNameLocalizations({ 'zh-CN': '是否阅读须知', 'zh-TW': '是否閱讀须知' })
                 .setDescription('是否要求下载者阅读注意事项?')
                 .setRequired(false)
+                .addChoices(
+                    { name: '✅ 是', value: 'true' },
+                    { name: '❌ 否', value: 'false' }
+                )
         ),
     async execute(interaction) {
         // 命令注册所需，实际逻辑由 handler 处理

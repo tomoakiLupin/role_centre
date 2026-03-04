@@ -16,8 +16,15 @@ async function convertRoleAssignments() {
 
         const userRolesByGuild = {};
 
+        if (!assignments || typeof assignments !== 'object') {
+            return;
+        }
+
         // 2. Process each operation in the assignments array
-        for (const operation of assignments) {
+        // We use Object.values or iterate if it's an array to avoid "is not iterable"
+        const operations = Array.isArray(assignments) ? assignments : Object.entries(assignments);
+
+        for (const operation of operations) {
             const operationData = operation[1];
             if (!operationData || !operationData.data) continue;
 

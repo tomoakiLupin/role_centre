@@ -64,8 +64,17 @@ class ButtonHandler {
             } else if (interaction.customId.startsWith('fp_')) {
                 const forumCommandsHandler = require('../../handler/forum_commands_handler');
                 await forumCommandsHandler.handleButton(interaction);
-            } else if (interaction.customId === 'confirm_assign' || interaction.customId === 'cancel_assign') {
-                // These are handled by a collector in batch_role_assign_handler.js, so we do nothing here.
+            } else if (interaction.customId.startsWith('wiz_')) {
+                const uploadWizardHandler = require('../../handler/upload_wizard_handler');
+                await uploadWizardHandler.handleButton(interaction);
+            } else if (
+                interaction.customId === 'confirm_assign' ||
+                interaction.customId === 'cancel_assign' ||
+                interaction.customId === 'btn_read_terms' ||
+                interaction.customId === 'btn_agree_terms' ||
+                interaction.customId === 'btn_captcha'
+            ) {
+                // These are handled by a local collector, so we do nothing here.
                 return;
             } else {
                 // For button interactions that don't match, we can provide a generic response.

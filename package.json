@@ -16,7 +16,7 @@
     "@grpc/grpc-js": "^1.14.0",
     "@grpc/proto-loader": "^0.8.0",
     "config": "^4.1.1",
-    "discord.js": "^14.22.1",
+    "discord.js": "^14.25.1",
     "dotenv": "^17.2.2",
     "google-protobuf": "^4.0.0",
     "grpc-tools": "^1.13.0",

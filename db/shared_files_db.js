@@ -33,9 +33,15 @@ class SharedFilesDB {
                                 source_message_id TEXT,
                                 req_reaction INTEGER DEFAULT 0,
                                 req_captcha INTEGER DEFAULT 0,
-                                req_terms INTEGER DEFAULT 0
+                                req_terms INTEGER DEFAULT 0,
+                                captcha_text TEXT
                             )
                         `);
+
+                        // 为了向后兼容，如果列不存在则添加
+                        this.db.run(`ALTER TABLE shared_files ADD COLUMN captcha_text TEXT`, () => { });
+                        this.db.run(`ALTER TABLE shared_files ADD COLUMN extra_files TEXT`, () => { });
+                        this.db.run(`ALTER TABLE shared_files ADD COLUMN terms_content TEXT`, () => { });
 
                         this.db.run(`
                             CREATE TABLE IF NOT EXISTS user_downloads (
@@ -67,10 +73,9 @@ class SharedFilesDB {
         return new Promise((resolve, reject) => {
             const stmt = this.db.prepare(`
                 INSERT INTO shared_files 
-                (id, uploader_id, file_name, file_url, upload_time, source_message_id, req_reaction, req_captcha, req_terms) 
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                (id, uploader_id, file_name, file_url, upload_time, source_message_id, req_reaction, req_captcha, req_terms, captcha_text, extra_files, terms_content) 
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             `);
-
             stmt.run(
                 data.id,
                 data.uploader_id,
@@ -81,6 +86,9 @@ class SharedFilesDB {
                 data.req_reaction ? 1 : 0,
                 data.req_captcha ? 1 : 0,
                 data.req_terms ? 1 : 0,
+                data.captcha_text || null,
+                data.extra_files ? JSON.stringify(data.extra_files) : null,
+                data.terms_content || null,
                 (err) => {
                     if (err) reject(err);
                     else resolve(true);
@@ -172,6 +180,40 @@ class SharedFilesDB {
             this.db.get(`SELECT * FROM shared_files WHERE source_message_id = ? ORDER BY upload_time DESC LIMIT 1`, [sourceMessageId], (err, row) => {
                 if (err) reject(err);
                 else resolve(row);
+            });
+        });
+    }
+
+    async getNextFileId() {
+        await this.initDB();
+        return new Promise((resolve, reject) => {
+            // CAST is necessary because id is stored as TEXT.
+            // This safely ignores non-numeric IDs from previous tests.
+            this.db.get(`SELECT MAX(CAST(id AS INTEGER)) as maxId FROM shared_files`, (err, row) => {
+                if (err) {
+                    reject(err);
+                } else {
+                    const nextId = (row && row.maxId !== null && !isNaN(row.maxId)) ? row.maxId + 1 : 0;
+                    resolve(nextId.toString());
+                }
+            });
+        });
+    }
+
+    async deleteFileRecord(id, userId, isAdmin = false) {
+        await this.initDB();
+        return new Promise((resolve, reject) => {
+            let sql = `DELETE FROM shared_files WHERE id = ?`;
+            let params = [id];
+
+            if (!isAdmin) {
+                sql += ` AND uploader_id = ?`;
+                params.push(userId);
+            }
+
+            this.db.run(sql, params, function (err) {
+                if (err) reject(err);
+                else resolve(this.changes > 0); // returns true if a row was deleted
             });
         });
     }

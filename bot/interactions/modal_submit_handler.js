@@ -17,6 +17,12 @@ class ModalSubmitHandler {
             } else if (interaction.customId.startsWith('modal_publish_work:')) {
                 const forumCommandsHandler = require('../../handler/forum_commands_handler');
                 await forumCommandsHandler.handleModalSubmit(interaction);
+            } else if (interaction.customId === 'captcha_modal') {
+                // Handled by local collector in get_file_handler, do nothing here
+                return;
+            } else if (interaction.customId.startsWith('wiz_modal_')) {
+                const uploadWizardHandler = require('../../handler/upload_wizard_handler');
+                await uploadWizardHandler.handleModalSubmit(interaction);
             } else {
                 // 可以为其他modal添加处理逻辑
                 await interaction.reply({ content: '未知的模态框提交', ephemeral: true });

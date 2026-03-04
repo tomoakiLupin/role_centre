@@ -15,14 +15,23 @@ class ForumPanelHandler {
     async checkEligibility(context) {
         const isThread = context.isThread ? context.isThread() : context.channel?.isThread();
         if (!isThread) {
+            console.log('[ForumPanel] checkEligibility fail: Not a thread.');
             return '该交互必须位于指定的论坛帖子内使用。';
         }
 
         const thread = context.isThread ? context : context.channel;
         const parentId = thread.parentId;
 
-        const forumConfig = config.get('forum_panel_config.forum_panel_config');
-        if (!forumConfig || !forumConfig.enabled_channel_ids || !forumConfig.enabled_channel_ids.includes(parentId)) {
+        const forumConfig = config.get('forum_panel');
+
+        let enabledChannelIds = [];
+        if (forumConfig && forumConfig.forum_panel_config && forumConfig.forum_panel_config.enabled_channel_ids) {
+            enabledChannelIds = forumConfig.forum_panel_config.enabled_channel_ids;
+        }
+
+        console.log(`[ForumPanel] checkEligibility: Thread ParentID = ${parentId}, Config Enabled IDs = ${JSON.stringify(enabledChannelIds)}`);
+
+        if (!enabledChannelIds.includes(parentId)) {
             return '该交互必须位于卡区的论坛频道内使用。';
         }
 
@@ -69,19 +78,30 @@ class ForumPanelHandler {
     async sendAuthorPanel(thread_or_interaction, ownerId, editMessage = null) {
         const embed = new EmbedBuilder()
             .setTitle('📄 作品发布')
-            .setDescription(`本 BOT 为反自动化爬虫脚本的防盗卡措施，提供交互性作品发布功能\n作者可选择通过本BOT发布作品，用户通过交互性按钮获取作品进行下载\n如果选择不使用本BOT，也建议首楼尽量放置图片，贴内放置作品，以避免简易爬虫批量盗取首楼作品\n\n**作者可选获取作品方式：**\n*   **无限制**: 用户通过点击按钮即可下载作品。无任何限制\n*   **点赞**: 用户对首楼进行反应后可下载作品\n*   **提阅/验证码**: 在此简单替代为“阅读注意事项”与“人机验证”\n\n*注：通过本面板发布时需提供直接下载链接或者提取码。*\n*如使用中有任何问题请反馈*`)
+            .setDescription(`本 BOT 为反自动化爬虫脚本的防盗卡措施，提供交互性作品发布功能\n作者可选择通过本BOT发布作品，用户通过交互性按钮获取作品进行下载\n\n**如何发布？**\n为了保证您的文件**绝对私密且不被抓取**，您可以直接点击下方的 **[📝 发布作品]** 按钮，系统会为您弹出一个安全的交互式配置面板。\n\n*如果你觉得不需要自动弹出此面板，可点击下方“不再提示”或直接无视。*`)
             .setColor(0x2B2D31);
 
         const row = new ActionRowBuilder().addComponents(
+            new ButtonBuilder().setCustomId('wiz_start').setLabel('发布作品').setEmoji('📝').setStyle(ButtonStyle.Success),
             new ButtonBuilder().setCustomId(`fp_remove_panel:${ownerId}`).setLabel('移除消息').setEmoji('⚠️').setStyle(ButtonStyle.Danger),
-            new ButtonBuilder().setCustomId(`fp_disable_prompt:${ownerId}`).setLabel('不再提示').setEmoji('🔕').setStyle(ButtonStyle.Danger),
-            new ButtonBuilder().setCustomId(`fp_publish_work:${ownerId}`).setLabel('发布作品').setEmoji('📝').setStyle(ButtonStyle.Success)
+            new ButtonBuilder().setCustomId(`fp_disable_prompt:${ownerId}`).setLabel('不再提示').setEmoji('🔕').setStyle(ButtonStyle.Danger)
         );
 
         if (editMessage) {
             await editMessage.edit({ content: `<@${ownerId}>`, embeds: [embed], components: [row] });
         } else {
-            await thread_or_interaction.send({ content: `<@${ownerId}>`, embeds: [embed], components: [row] });
+            // --- 🤖 修复 Discord.js 版本兼容性 Bug 开始 ---
+            if (typeof thread_or_interaction.send === 'function') {
+                // 如果传来的是真正的频道或帖子对象，它自带 send 方法
+                await thread_or_interaction.send({ content: `<@${ownerId}>`, embeds: [embed], components: [row] });
+            } else if (thread_or_interaction.channel && typeof thread_or_interaction.channel.send === 'function') {
+                // 如果传来的是斜杠命令交互对象，则向它所在的频道发送面板
+                await thread_or_interaction.channel.send({ content: `<@${ownerId}>`, embeds: [embed], components: [row] });
+            } else if (typeof thread_or_interaction.followUp === 'function') {
+                // 最后的安全兜底方案
+                await thread_or_interaction.followUp({ content: `<@${ownerId}>`, embeds: [embed], components: [row] });
+            }
+            // --- 🤖 修复 Discord.js 版本兼容性 Bug 结束 ---
         }
     }
 

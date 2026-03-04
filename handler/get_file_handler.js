@@ -35,12 +35,12 @@ class GetFileHandler {
                 let hasReacted = false;
                 try {
                     // 判断当前频道是否是帖子，并尝试获取首楼消息
-                    if (interaction.channel && interaction.channel.isThread()) {
-                        const starterMsg = await interaction.channel.fetchStarterMessage();
-                        if (starterMsg && starterMsg.reactions.cache.size > 0) {
+                    if (interaction.channel && typeof interaction.channel.isThread === 'function' && interaction.channel.isThread()) {
+                        const starterMsg = await interaction.channel.fetchStarterMessage().catch(() => null);
+                        if (starterMsg && starterMsg.reactions && starterMsg.reactions.cache.size > 0) {
                             for (const reaction of starterMsg.reactions.cache.values()) {
-                                const users = await reaction.users.fetch();
-                                if (users.has(userId)) {
+                                const users = await reaction.users.fetch().catch(() => null);
+                                if (users && users.has(userId)) {
                                     hasReacted = true;
                                     break;
                                 }
@@ -48,10 +48,10 @@ class GetFileHandler {
                         }
                     } else if (fileRecord.source_message_id) {
                         const msg = await interaction.channel.messages.fetch(fileRecord.source_message_id).catch(() => null);
-                        if (msg && msg.reactions.cache.size > 0) {
+                        if (msg && msg.reactions && msg.reactions.cache.size > 0) {
                             for (const reaction of msg.reactions.cache.values()) {
-                                const users = await reaction.users.fetch();
-                                if (users.has(userId)) {
+                                const users = await reaction.users.fetch().catch(() => null);
+                                if (users && users.has(userId)) {
                                     hasReacted = true;
                                     break;
                                 }
@@ -68,7 +68,7 @@ class GetFileHandler {
             }
 
             // 4. 检查条款和验证码条件
-            if (fileRecord.req_terms || fileRecord.req_captcha) {
+            if (fileRecord.req_terms || fileRecord.req_captcha || fileRecord.captcha_text) {
                 await this.handleVerificationFlow(interaction, fileRecord);
             } else {
                 // 如果没有验证条件，直接发送文件
@@ -82,115 +82,163 @@ class GetFileHandler {
     }
 
     async handleVerificationFlow(interaction, fileRecord) {
-        let reqTermsPassed = !fileRecord.req_terms;
-        let reqCaptchaPassed = !fileRecord.req_captcha;
+        // ─── 步骤 1：验证码 / 提取口令（如需要）───────────────────────────
+        if (fileRecord.req_captcha || fileRecord.captcha_text) {
+            const passed = await this.doCaptchaStep(interaction, fileRecord);
+            if (!passed) return; // 超时或取消
+        }
 
-        const getRow = () => {
-            const row = new ActionRowBuilder();
-            if (!reqTermsPassed) {
-                row.addComponents(
-                    new ButtonBuilder().setCustomId('btn_read_terms').setLabel('阅读注意事项').setStyle(ButtonStyle.Secondary)
-                );
-            }
-            if (!reqCaptchaPassed) {
-                row.addComponents(
-                    new ButtonBuilder().setCustomId('btn_captcha').setLabel('进行人机验证').setStyle(ButtonStyle.Primary)
-                );
-            }
-            return row;
-        };
+        // ─── 步骤 2：条款确认（如需要，最后一步）───────────────────────────
+        if (fileRecord.req_terms && fileRecord.terms_content) {
+            const agreed = await this.doTermsStep(interaction, fileRecord);
+            if (!agreed) return; // 超时或取消
+        }
 
-        const msg = await interaction.editReply({
-            content: '⚠️ 获取该文件需要完成以下验证：',
-            components: [getRow()]
-        });
+        // ─── 所有验证通过，发送资源 ──────────────────────────────────────
+        await this.sendFile(interaction, fileRecord);
+    }
 
-        const collector = msg.createMessageComponentCollector({ time: 300000 }); // 5 mins
-
-        // 简单的验证码逻辑
+    // 验证码 / 提取口令步骤（显示一个"输入口令"按钮 → Modal）
+    async doCaptchaStep(interaction, fileRecord) {
+        const label = fileRecord.captcha_text ? '输入提取口令' : '进行人机验证';
         const num1 = Math.floor(Math.random() * 10) + 1;
         const num2 = Math.floor(Math.random() * 10) + 1;
         const expectedAnswer = (num1 + num2).toString();
 
-        collector.on('collect', async i => {
-            if (i.user.id !== interaction.user.id) {
-                return i.reply({ content: '这不是你的交互！', flags: [64] });
-            }
+        const msg = await interaction.editReply({
+            content: `🔐 **第一步：验证**\n请点击下方按钮完成验证后继续。`,
+            embeds: [],
+            components: [
+                new ActionRowBuilder().addComponents(
+                    new ButtonBuilder().setCustomId('btn_captcha').setLabel(label).setStyle(ButtonStyle.Primary)
+                )
+            ]
+        });
 
-            if (i.customId === 'btn_read_terms') {
-                const termsEmbed = new EmbedBuilder()
-                    .setTitle('📜 下载注意事项')
-                    .setDescription('1. 下载的内容仅供学习和交流使用。\n2. 请勿将内容用于任何商业用途。\n3. 您需要对下载后的文件安全负责，请在打开前自行杀毒。\n4. 同意即代表遵守本社区的所有规章制度。')
-                    .setColor(0xffff00);
+        return new Promise((resolve) => {
+            const collector = msg.createMessageComponentCollector({
+                filter: i => i.user.id === interaction.user.id,
+                time: 300000,
+                max: 10
+            });
 
-                const agreeRow = new ActionRowBuilder().addComponents(
-                    new ButtonBuilder().setCustomId('btn_agree_terms').setLabel('同意并继续').setStyle(ButtonStyle.Success)
-                );
-
-                await i.reply({ embeds: [termsEmbed], components: [agreeRow], flags: [64] });
-            }
-            else if (i.customId === 'btn_agree_terms') {
-                reqTermsPassed = true;
-                // Update the main panel to remove the Terms button
-                await interaction.editReply({ components: getRow().components.length > 0 ? [getRow()] : [] });
-                await i.update({ content: '✅ 已同意注意事项', embeds: [], components: [] });
-                this.checkIfAllPassed(reqTermsPassed, reqCaptchaPassed, interaction, fileRecord, collector);
-            }
-            else if (i.customId === 'btn_captcha') {
-                const modal = new ModalBuilder()
-                    .setCustomId('captcha_modal')
-                    .setTitle('人机验证');
-
-                const verifyInput = new TextInputBuilder()
-                    .setCustomId('captcha_input')
-                    .setLabel(`请计算 ${num1} + ${num2} 的结果`)
-                    .setStyle(TextInputStyle.Short)
-                    .setRequired(true);
-
-                const firstActionRow = new ActionRowBuilder().addComponents(verifyInput);
-                modal.addComponents(firstActionRow);
-
-                await i.showModal(modal);
-
+            collector.on('collect', async i => {
                 try {
-                    const submitted = await i.awaitModalSubmit({ time: 60000, filter: subI => subI.user.id === interaction.user.id });
-                    if (submitted) {
-                        if (submitted.fields.getTextInputValue('captcha_input').trim() === expectedAnswer) {
-                            reqCaptchaPassed = true;
-                            await submitted.reply({ content: '✅ 验证码正确', flags: [64] });
+                    if (i.customId !== 'btn_captcha') return;
 
-                            // 更新原消息面板
-                            await interaction.editReply({ components: getRow().components.length > 0 ? [getRow()] : [] });
-                            this.checkIfAllPassed(reqTermsPassed, reqCaptchaPassed, interaction, fileRecord, collector);
+                    const modal = new ModalBuilder()
+                        .setCustomId('captcha_modal')
+                        .setTitle(fileRecord.captcha_text ? '作品获取口令' : '人机验证');
+                    modal.addComponents(
+                        new ActionRowBuilder().addComponents(
+                            new TextInputBuilder()
+                                .setCustomId('captcha_input')
+                                .setLabel(fileRecord.captcha_text ? '请输入该作品的提取口令' : `请计算 ${num1} + ${num2} 的结果`)
+                                .setStyle(TextInputStyle.Short)
+                                .setRequired(true)
+                        )
+                    );
+                    await i.showModal(modal);
+
+                    try {
+                        const submitted = await i.awaitModalSubmit({
+                            time: 60000,
+                            filter: s => s.user.id === interaction.user.id
+                        });
+                        const expected = fileRecord.captcha_text || expectedAnswer;
+                        const userInput = submitted.fields.getTextInputValue('captcha_input').trim();
+
+                        if (userInput === expected) {
+                            await submitted.reply({ content: '✅ 验证通过！', flags: [64] });
+                            collector.stop('passed');
                         } else {
-                            await submitted.reply({ content: '❌ 验证码错误，请重新点击按钮重试。', flags: [64] });
+                            await submitted.reply({
+                                content: '❌ 错误，请重新尝试。',
+                                flags: [64]
+                            });
                         }
-                    }
+                    } catch (e) { /* 超时，什么都不做 */ }
                 } catch (err) {
-                    // Modal timeout
+                    console.error('[GetFileHandler] doCaptchaStep collect error:', err);
                 }
-            }
+            });
+
+            collector.on('end', (_, reason) => {
+                if (reason === 'passed') {
+                    resolve(true);
+                } else {
+                    interaction.editReply({ content: '⏰ 验证超时，请重新使用命令。', components: [] }).catch(() => { });
+                    resolve(false);
+                }
+            });
         });
     }
 
-    async checkIfAllPassed(terms, captcha, interaction, fileRecord, collector) {
-        if (terms && captcha) {
-            collector.stop();
-            await this.sendFile(interaction, fileRecord);
-        }
+    // 条款确认步骤（最后一步，自动出现，点确确定后发文件）
+    async doTermsStep(interaction, fileRecord) {
+        const termsEmbed = new EmbedBuilder()
+            .setTitle('⏳ 请稍候一下')
+            .setDescription(fileRecord.terms_content)
+            .setColor(0xffa500)
+            .setFooter({ text: '阅读完毕后请点击下方"确定"按钮继续' });
+
+        const msg = await interaction.editReply({
+            content: '',
+            embeds: [termsEmbed],
+            components: [
+                new ActionRowBuilder().addComponents(
+                    new ButtonBuilder().setCustomId('btn_confirm_terms').setLabel('✅ 确定').setStyle(ButtonStyle.Success)
+                )
+            ]
+        });
+
+        return new Promise((resolve) => {
+            const collector = msg.createMessageComponentCollector({
+                filter: i => i.user.id === interaction.user.id,
+                time: 300000,
+                max: 1
+            });
+
+            collector.on('collect', async i => {
+                if (i.customId === 'btn_confirm_terms') {
+                    await i.update({ content: '✅ 已确认，正在准备资源...', embeds: [], components: [] });
+                    resolve(true);
+                }
+            });
+
+            collector.on('end', (collected, reason) => {
+                if (reason !== 'limit') {
+                    interaction.editReply({ content: '⏰ 超时，请重新使用命令。', embeds: [], components: [] }).catch(() => { });
+                    resolve(false);
+                }
+            });
+        });
     }
 
     async sendFile(interaction, fileRecord) {
+        console.log(`[GetFileHandler] sendFile started for file: ${fileRecord.id}`);
         try {
-            await interaction.editReply({ content: '🔄 正在获取文件...', embeds: [], components: [] });
+            await interaction.editReply({ content: '✅ 验证通过，正在生成文件...', embeds: [], components: [] });
 
-            const attachment = new AttachmentBuilder(fileRecord.file_url)
-                .setName(fileRecord.file_name);
+            // 构建所有附件（主文件 + 额外文件）
+            const attachments = [];
+            const primaryName = fileRecord.file_name?.split(', ')[0] || `file_${fileRecord.id}`;
+            attachments.push(new AttachmentBuilder(fileRecord.file_url).setName(primaryName));
 
-            await interaction.editReply({
-                content: `✅ 文件加载成功！\n文件代码: \`${fileRecord.id}\`\n文件名: 📁 **${fileRecord.file_name}**`,
-                files: [attachment]
-            });
+            if (fileRecord.extra_files) {
+                let extra = [];
+                try { extra = JSON.parse(fileRecord.extra_files); } catch (e) { /* ignore */ }
+                for (const f of extra) {
+                    attachments.push(new AttachmentBuilder(f.url).setName(f.name));
+                }
+            }
+
+            const fileCount = attachments.length;
+            await interaction.followUp({
+                content: `✅ 文件加载成功！\n文件代码: \`${fileRecord.id}\`\n共 **${fileCount}** 个文件`,
+                files: attachments,
+                flags: [64]
+            }).catch(err => console.error('[GetFileHandler] followUp failed:', err));
 
             // 日志记录
             sendLog(interaction.client, 'info', {
@@ -202,7 +250,7 @@ class GetFileHandler {
 
         } catch (error) {
             console.error('[GetFileHandler] 发送文件失败:', error);
-            await interaction.editReply({ content: '❌ 文件地址可能已失效或拉取失败。' });
+            await interaction.editReply({ content: '❌ 文件地址可能已失效或拉取失败。' }).catch(() => { });
         }
     }
 }

@@ -1,7 +1,6 @@
 const { EmbedBuilder, ModalBuilder, TextInputBuilder, TextInputStyle, ActionRowBuilder } = require('discord.js');
 const forumPanelHandler = require('./forum_panel_handler');
 const { getDbInstance } = require('../db/shared_files_db');
-const crypto = require('crypto');
 
 class ForumCommandsHandler {
     constructor() {
@@ -18,9 +17,16 @@ class ForumCommandsHandler {
             return await forumPanelHandler.sendAuthFailed(interaction, authError);
         }
 
-        // 发送面板
-        await interaction.deferReply({ flags: [64] });
-        await forumPanelHandler.sendAuthorPanel(interaction, interaction.user.id);
+        // 仅限帖子作者或管理员使用
+        if (interaction.channel && interaction.channel.isThread()) {
+            if (interaction.user.id !== interaction.channel.ownerId && !interaction.member.permissions.has('Administrator')) {
+                return await interaction.reply({ content: '❌ 权限不足：只有本帖的发布者（楼主）才能在此发布作品。', flags: [64] });
+            }
+        }
+
+        // 委托给可视化交互向导处理
+        const uploadWizardHandler = require('./upload_wizard_handler');
+        await uploadWizardHandler.startWizard(interaction);
     }
 
     async executeDisablePrompt(interaction) {
@@ -69,6 +75,26 @@ class ForumCommandsHandler {
         await getFileHandler.execute(interaction);
     }
 
+    async executeRemoveWork(interaction) {
+        // 命令： /移除作品
+        await interaction.deferReply({ flags: [64] });
+
+        const fileId = interaction.options.getString('file_id').trim().toUpperCase();
+        const isAdmin = interaction.member.permissions.has('Administrator');
+
+        try {
+            const success = await this.db.deleteFileRecord(fileId, interaction.user.id, isAdmin);
+            if (success) {
+                await interaction.editReply({ content: `✅ 文件 \`${fileId}\` 及其所有访问信息已彻底从库中删除。` });
+            } else {
+                await interaction.editReply({ content: `❌ 未找到编号为 \`${fileId}\` 的文件，或者您没有删除它的权限（仅发布者或管理员可删除）。` });
+            }
+        } catch (error) {
+            console.error('[ForumCommandsHandler] 删除文件数据失败:', error);
+            await interaction.editReply({ content: '❌ 删除过程中发生数据库错误。' });
+        }
+    }
+
 
     // ========== BUTTON / MODAL HANDLERS ==========
 
@@ -98,37 +124,14 @@ class ForumCommandsHandler {
             return;
         }
 
-        // 【发布作品】按钮 (弹出模态框)
-        if (customId.startsWith('fp_publish_work:') || customId.startsWith('fp_republish:')) {
+        // 【重新放置作品发布处】按钮 (由于改成了斜杠原生，要求用户再打一遍指令)
+        if (customId.startsWith('fp_republish:')) {
             const uploaderId = customId.split(':')[1];
             if (interaction.user.id !== uploaderId && !interaction.member.permissions.has('Administrator')) {
-                return await interaction.reply({ content: '❌ 只有该帖子的作者可以发布作品。', flags: [64] });
+                return await interaction.reply({ content: '❌ 只有该帖子的作者可以重新发布作品。', flags: [64] });
             }
 
-            const modal = new ModalBuilder()
-                .setCustomId(`modal_publish_work:${interaction.message.id}`)
-                .setTitle('发布新作品');
-
-            const urlInput = new TextInputBuilder()
-                .setCustomId('file_url')
-                .setLabel('在此输入文件的下载链接（Discord/网盘等）')
-                .setStyle(TextInputStyle.Paragraph)
-                .setRequired(true);
-
-            const conditionsInput = new TextInputBuilder()
-                .setCustomId('conditions')
-                .setLabel('获取条件：0=无, 1=点赞, 2=人机验证, 3=阅读提示')
-                .setPlaceholder('输入纯数字，如需组合可填 12 或 13')
-                .setStyle(TextInputStyle.Short)
-                .setRequired(true)
-                .setValue('1');
-
-            modal.addComponents(
-                new ActionRowBuilder().addComponents(urlInput),
-                new ActionRowBuilder().addComponents(conditionsInput)
-            );
-
-            await interaction.showModal(modal);
+            await interaction.reply({ content: '💡 **请在聊天框再次输入 `/发布作品` 命令。**\n\n这会重新弹出一个上传框供您上传新文件并覆盖之前的发布处。', flags: [64] });
             return;
         }
 
@@ -137,13 +140,37 @@ class ForumCommandsHandler {
             const fileId = customId.split(':')[1];
             const getFileHandler = require('./get_file_handler');
 
-            // 伪装 interaction 以重用 getFileHandler
-            const tempInteraction = Object.assign(Object.create(Object.getPrototypeOf(interaction)), interaction);
-            tempInteraction.options = {
-                getString: () => fileId
-            };
+            try {
+                // 因为原本的 getFileHandler 预期接收一个 Slash Command Interaction, 
+                // 我们通过代理(Proxy)拦截 options.getString 来注入 file_id
+                const pseudoInteraction = new Proxy(interaction, {
+                    get(target, prop, receiver) {
+                        if (prop === 'options') {
+                            return {
+                                getString: (name) => {
+                                    if (name === 'file_id') return fileId;
+                                    return null;
+                                }
+                            };
+                        }
+                        // 兜底其它方法
+                        const value = Reflect.get(target, prop, receiver);
+                        if (typeof value === 'function') {
+                            return value.bind(target);
+                        }
+                        return value;
+                    }
+                });
 
-            await getFileHandler.execute(tempInteraction);
+                await getFileHandler.execute(pseudoInteraction);
+            } catch (err) {
+                console.error('[ForumCommandsHandler] 模拟获取作品时发生错误:', err);
+                if (!interaction.replied && !interaction.deferred) {
+                    await interaction.reply({ content: '❌ 获取作品时发生系统错误。', flags: [64] });
+                } else {
+                    await interaction.editReply({ content: '❌ 获取作品时发生系统错误。' });
+                }
+            }
             return;
         }
     }

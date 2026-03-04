@@ -1,7 +1,6 @@
 const { EmbedBuilder } = require('discord.js');
 const { getDbInstance } = require('../db/shared_files_db');
 const { sendLog } = require('../utils/logger');
-const crypto = require('crypto');
 
 class UploadFileHandler {
     constructor() {
@@ -11,14 +10,22 @@ class UploadFileHandler {
     }
 
     async execute(interaction) {
+        // 如果是在帖子（Thread）中，仅限帖子作者或管理员发布
+        if (interaction.channel && interaction.channel.isThread()) {
+            if (interaction.user.id !== interaction.channel.ownerId && !interaction.member.permissions.has('Administrator')) {
+                return await interaction.reply({ content: '❌ 权限不足：在帖子内，只有帖子的发布者（楼主）才能上传公开文件。', flags: [64] });
+            }
+        }
+
         // 延迟回复，以便有时间处理
         await interaction.deferReply({ flags: [64] }); // ephemeral: true
 
         try {
             const attachment = interaction.options.getAttachment('file');
-            const reqReaction = interaction.options.getBoolean('req_reaction') || false;
-            const reqCaptcha = interaction.options.getBoolean('req_captcha') || false;
-            const reqTerms = interaction.options.getBoolean('req_terms') || false;
+            const reqReaction = interaction.options.getString('req_reaction') === 'true';
+            const captchaText = interaction.options.getString('captcha_text');
+            const reqCaptcha = !!captchaText;
+            const reqTerms = interaction.options.getString('req_terms') === 'true';
 
             if (!attachment) {
                 return await interaction.editReply({ content: '❌ 未能获取到文件附件。' });
@@ -29,22 +36,23 @@ class UploadFileHandler {
             const sourceMessageId = interaction.channelId;
             const uploaderId = interaction.user.id;
 
-            // 生成随机的唯一提取码 (8位字符)
-            const fileId = crypto.randomBytes(4).toString('hex').toUpperCase();
+            // 获取下一个顺序自增 ID
+            const fileId = await this.db.getNextFileId();
 
-            const fileData = {
+            const fileRecord = {
                 id: fileId,
-                uploader_id: uploaderId,
-                file_name: attachment.name || `file_${fileId}`,
+                uploader_id: interaction.user.id,
+                file_name: attachment.name,
                 file_url: attachment.url,
                 upload_time: new Date().toISOString(),
-                source_message_id: sourceMessageId,
+                source_message_id: interaction.channelId, // Thread ID if uploaded in a thread, else channel ID
                 req_reaction: reqReaction,
                 req_captcha: reqCaptcha,
-                req_terms: reqTerms
+                req_terms: reqTerms,
+                captcha_text: captchaText
             };
 
-            await this.db.saveFileRecord(fileData);
+            await this.db.saveFileRecord(fileRecord);
 
             const embed = new EmbedBuilder()
                 .setTitle('✅ 文件上传成功')
