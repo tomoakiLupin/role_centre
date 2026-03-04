@@ -1,6 +1,6 @@
 const { EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, ModalBuilder, TextInputBuilder, TextInputStyle, AttachmentBuilder, ComponentType } = require('discord.js');
-const { getDbInstance } = require('../db/shared_files_db');
-const { sendLog } = require('../utils/logger');
+const { getDbInstance } = require('../../db/shared_files_db');
+const { sendLog } = require('../../utils/logger');
 
 class GetFileHandler {
     constructor() {

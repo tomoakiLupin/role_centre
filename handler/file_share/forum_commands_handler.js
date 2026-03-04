@@ -1,6 +1,6 @@
 const { EmbedBuilder, ModalBuilder, TextInputBuilder, TextInputStyle, ActionRowBuilder } = require('discord.js');
 const forumPanelHandler = require('./forum_panel_handler');
-const { getDbInstance } = require('../db/shared_files_db');
+const { getDbInstance } = require('../../db/shared_files_db');
 
 class ForumCommandsHandler {
     constructor() {

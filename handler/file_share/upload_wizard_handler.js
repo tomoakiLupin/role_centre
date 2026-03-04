@@ -1,7 +1,7 @@
 const { EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, ModalBuilder, TextInputBuilder, TextInputStyle, FileUploadBuilder, LabelBuilder } = require('discord.js');
 const https = require('https');
 const forumPanelHandler = require('./forum_panel_handler');
-const { getDbInstance } = require('../db/shared_files_db');
+const { getDbInstance } = require('../../db/shared_files_db');
 
 // State memory for active wizards
 const wizardStates = new Map();

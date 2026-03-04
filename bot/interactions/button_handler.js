@@ -62,10 +62,10 @@ class ButtonHandler {
             } else if (interaction.customId.startsWith('interview_fail:')) {
                 await this.interviewResultHandler.handleFail(interaction);
             } else if (interaction.customId.startsWith('fp_')) {
-                const forumCommandsHandler = require('../../handler/forum_commands_handler');
+                const forumCommandsHandler = require('../../handler/file_share/forum_commands_handler');
                 await forumCommandsHandler.handleButton(interaction);
             } else if (interaction.customId.startsWith('wiz_')) {
-                const uploadWizardHandler = require('../../handler/upload_wizard_handler');
+                const uploadWizardHandler = require('../../handler/file_share/upload_wizard_handler');
                 await uploadWizardHandler.handleButton(interaction);
             } else if (
                 interaction.customId === 'confirm_assign' ||
